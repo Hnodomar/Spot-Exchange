@@ -6,10 +6,10 @@
 
 #include "message.hpp"
 
-using tcp = boost::asio::ip::tcp;
-
 namespace server {
-class ServerConnection {
+    using tcp = boost::asio::ip::tcp;
+    using ThisShared = std::enable_shared_from_this<ServerConnection>;
+class ServerConnection : public ThisShared {
 public:
     ServerConnection(tcp::socket socket, std::string ip);
     void init();

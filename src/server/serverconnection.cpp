@@ -18,12 +18,12 @@ void ServerConnection::readMsgHeader() {
             temp_msg_.getMsgHeader(),
             msg::HEADER_LEN
         ),
-        [this](boost::system::error_code ec, std::size_t) {
+        [self(shared_from_this())](boost::system::error_code ec, std::size_t) {
             if (!ec) {
-                readMsgBody();
+                self->readMsgBody();
             }
             else
-                socket_.close();
+                self->socket_.close();
         }
     );
 }
@@ -35,11 +35,11 @@ void ServerConnection::readMsgBody() {
             temp_msg_.getMsgBody(),
             temp_msg_.getBodyLen()
         ),
-        [this](boost::system::error_code ec, std::size_t) {
+        [self(shared_from_this())](boost::system::error_code ec, std::size_t) {
             if (!ec)
-                readMsgHeader();
+                self->readMsgHeader();
             else
-                socket_.close();
+                self->socket_.close();
         }
     );
 }
