@@ -7,6 +7,7 @@
 #include "message.hpp"
 
 namespace server {
+    class ServerConnection;
     using tcp = boost::asio::ip::tcp;
     using ThisShared = std::enable_shared_from_this<ServerConnection>;
 class ServerConnection : public ThisShared {
