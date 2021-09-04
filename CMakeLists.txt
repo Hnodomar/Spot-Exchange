@@ -12,4 +12,4 @@ file(GLOB server_src src/server/*.cpp)
 add_executable(tradeserver ${server_src})
 target_link_libraries(tradeserver ${Boost_LIBRARIES})
 
-include_directories(${Boost_INCLUDE_DIR})
+include_directories(${Boost_INCLUDE_DIR} include/)

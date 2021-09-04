@@ -2,6 +2,9 @@
 #define TRADE_SERVER_HPP
 
 #include <boost/asio.hpp>
+#include <memory>
+
+#include "serverconnection.hpp"
 
 namespace server {
 using tcp = boost::asio::ip::tcp;
