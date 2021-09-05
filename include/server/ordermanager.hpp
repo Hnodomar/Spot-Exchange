@@ -10,7 +10,8 @@
 namespace server {
 namespace tradeorder {
 class OrderManager {
-    void addOrder();
+public:
+    void addOrder(::tradeorder::Order order);
     void modifyOrder();
     void cancelOrder();
 private:
@@ -18,7 +19,7 @@ private:
     using book_index = uint64_t;
     std::vector<OrderBook> orderbooks_;
     std::unordered_map<order_id, ::tradeorder::Order> orders_;
-    std::unordered_map<ticker, book_index> orderbooks_;
+    std::unordered_map<ticker, book_index> tickers_;
 };
 }
 }

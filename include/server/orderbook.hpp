@@ -8,7 +8,10 @@
 namespace server {
 namespace tradeorder {
 class OrderBook {
-    OrderBook();
+public:
+    OrderBook() {
+        
+    }
 private:
     uint64_t ticker_;
     using price = uint64_t; using size = uint64_t;
