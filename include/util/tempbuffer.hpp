@@ -8,8 +8,8 @@
 
 #include "order.hpp"
 
-using namespace tradeorder;
 namespace util {
+    using namespace ::tradeorder;
 static constexpr std::array<uint8_t, 4> allowedtypes = {'A', 'M', 'C', 'R'};
 struct TempBuffer {
     bool parseHeader() {
