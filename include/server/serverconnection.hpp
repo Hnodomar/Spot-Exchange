@@ -4,7 +4,7 @@
 #include <string>
 #include <boost/asio.hpp>
 
-#include "message.hpp"
+#include "order.hpp"
 
 namespace server {
     class ServerConnection;
@@ -15,11 +15,12 @@ public:
     ServerConnection(tcp::socket socket, std::string ip);
     void init();
 private:
-    void readMsgHeader();
-    void readMsgBody();
+    void readOrderHeader();
+    void readOrderBody();
+    void interpretOrderType();
     tcp::socket socket_;
     std::string ip_;
-    msg::Message temp_msg_;
+    uint8_t temp_buffer_[tradeorder::HEADER_LEN + tradeorder::MAX_BODY_LEN] = {0};
 };
 }
 
