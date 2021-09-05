@@ -16,7 +16,7 @@ void ServerConnection::readOrderHeader() {
         socket_,
         boost::asio::buffer(
             tbuffer_.getBuffer(),
-            ::tradeorder::HEADER_LEN
+            tbuffer_.getHeaderLength()
         ),
         [self(shared_from_this())](boost::system::error_code ec, std::size_t) {
             if (!ec && self->tbuffer_.parseHeader()) {
@@ -46,7 +46,7 @@ void ServerConnection::readOrderBody() {
     );
 }
 
-void ServerConnection::interpretOrderType() {
+inline void ServerConnection::interpretOrderType() {
     switch(tbuffer_.getOrderType()) {
         case 'A':
             addOrder();
@@ -65,7 +65,7 @@ void ServerConnection::interpretOrderType() {
     }
 }
 
-void ServerConnection::addOrder() {
+inline void ServerConnection::addOrder() {
     ordermanager_.addOrder(::tradeorder::Order(
         reinterpret_cast<::tradeorder::AddOrder*>(tbuffer_.getBodyBuffer())
     ));

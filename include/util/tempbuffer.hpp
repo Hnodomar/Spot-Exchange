@@ -33,6 +33,7 @@ struct TempBuffer {
             return false;
         return true;
     }
+    uint8_t getHeaderLength() const {return HEADER_LEN;}
     uint8_t getBodyLength() const {return length_;}
     uint8_t getOrderType() const {return type_;}
     uint8_t* getBuffer() {return buffer_;}
