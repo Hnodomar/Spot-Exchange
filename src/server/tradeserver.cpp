@@ -18,7 +18,7 @@ void TradeServer::acceptConnections() {
             if (!ec) {
                 std::make_shared<ServerConnection>(
                     std::move(socket),
-                    socket.remote_endpoint().address().to_string()
+                    ordermanager_
                 )->init();
             }
             acceptConnections();

@@ -2,8 +2,9 @@
 
 using namespace server;
 
-ServerConnection::ServerConnection(tcp::socket socket, std::string ip) :
-    socket_(std::move(socket)), ip_(ip) 
+ServerConnection::ServerConnection(tcp::socket socket, tradeorder::OrderManager& om)
+    : socket_(std::move(socket)), ip_(socket.remote_endpoint().address().to_string()),
+      ordermanager_(om) 
 {}
 
 void ServerConnection::init() {
@@ -14,11 +15,11 @@ void ServerConnection::readOrderHeader() {
     boost::asio::async_read(
         socket_,
         boost::asio::buffer(
-            temp_buffer_,
-            tradeorder::HEADER_LEN
+            tbuffer_.getBuffer(),
+            ::tradeorder::HEADER_LEN
         ),
         [self(shared_from_this())](boost::system::error_code ec, std::size_t) {
-            if (!ec) {
+            if (!ec && self->tbuffer_.parseHeader()) {
                 self->readOrderBody();
             }
             else
@@ -31,8 +32,8 @@ void ServerConnection::readOrderBody() {
     boost::asio::async_read(
         socket_,
         boost::asio::buffer(
-            temp_buffer_ + tradeorder::HEADER_LEN,
-            tradeorder::MAX_BODY_LEN - tradeorder::HEADER_LEN
+            tbuffer_.getBodyBuffer(),
+            tbuffer_.getBodyLength()
         ),
         [self(shared_from_this())](boost::system::error_code ec, std::size_t) {
             if (!ec) {
@@ -46,16 +47,26 @@ void ServerConnection::readOrderBody() {
 }
 
 void ServerConnection::interpretOrderType() {
-    switch(temp_buffer_[0]) {
+    switch(tbuffer_.getOrderType()) {
         case 'A':
+            addOrder();
             break;
         case 'M':
+            modifyOrder();
             break;
         case 'C':
+            cancelOrder();
             break;
         case 'R':
+            replaceOrder();
             break;
         default:
             break;
     }
+}
+
+void ServerConnection::addOrder() {
+    ordermanager_.addOrder(::tradeorder::Order(
+        reinterpret_cast<::tradeorder::AddOrder*>(tbuffer_.getBodyBuffer())
+    ));
 }

@@ -5,9 +5,11 @@
 #include <memory>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 
 #include "logger.hpp"
 #include "serverconnection.hpp"
+#include "ordermanager.hpp"
 
 namespace server {
 using tcp = boost::asio::ip::tcp;
@@ -20,6 +22,7 @@ private:
     boost::asio::io_context ioctxt_;
     tcp::acceptor listener_;
     logging::Logger logger_;
+    tradeorder::OrderManager ordermanager_;
 };
 }
 
