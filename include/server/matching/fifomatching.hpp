@@ -34,11 +34,14 @@ MatchResult FIFOMatch(Limit& order_to_match, std::map<price, Level>& book) {
                 return match_result;
             }
             Limit* temp_lim = book_lim->next_limit;
-            
+            book_lvl.head = temp_lim;
+            temp_lim->prev_limit = nullptr;
             book_lim = book_lim->next_limit;
         }
-
+        ++book_itr;
+        book_lvl = book_itr->second;
     }
+    return match_result;
 }
 
 MatchResult FIFOMatch(server::tradeorder::Limit& order_to_match, 
