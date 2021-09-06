@@ -19,11 +19,13 @@ struct AddOrder {
 struct ModifyOrder {
     uint64_t order_id;
     uint16_t quantity;
+    uint64_t ticker;
     uint8_t addOrRemove;
 };
 
 struct CancelOrder {
     uint64_t order_id;
+    uint64_t ticker;
 };  
 }
 #endif

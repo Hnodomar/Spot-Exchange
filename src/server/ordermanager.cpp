@@ -3,9 +3,14 @@
 using namespace server::tradeorder;
 
 void OrderManager::addOrder(::tradeorder::Order order) {
-    if (tickers_.find(order.getTicker()) == tickers_.end()) {
-        orderbooks_.emplace_back(OrderBook());
-        tickers_.insert(order.getTicker(), orderbooks_.size() - 1);
+    auto itr = orderbooks_.find(order.getTicker());
+    if (itr == orderbooks_.end()) {
+        auto ret = orderbooks_.emplace(
+            std::make_pair(order.getTicker(), OrderBook())
+        );
+        if (!ret.second)
+            return;
+        itr = ret.first;
     }
-    orders_.insert(std::make_pair(order.getOrderID(), order));
+    itr->second.addOrder(order);
 }
