@@ -3,8 +3,10 @@
 
 #include <cstdint>
 #include <string>
+#include <cstring>
 
 #include "exception.hpp"
+#include "ordertypes.hpp"
 
 namespace tradeorder {
 constexpr uint8_t HEADER_LEN = 2;

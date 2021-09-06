@@ -2,10 +2,10 @@
 #define LIMIT_HPP
 
 #include "order.hpp"
-#include "level.hpp"
 
 namespace server {
 namespace tradeorder {
+struct Level;
 struct Limit { 
     Limit(::tradeorder::Order order, Level& current_level):
         order(order), current_level(current_level)

@@ -11,7 +11,7 @@ namespace server {
 namespace tradeorder {
 class OrderManager {
 public:
-    void addOrder(::tradeorder::Order order);
+    void addOrder(::tradeorder::Order&& order);
     void modifyOrder();
     void cancelOrder();
 private:

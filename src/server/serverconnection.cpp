@@ -66,7 +66,23 @@ inline void ServerConnection::interpretOrderType() {
 }
 
 inline void ServerConnection::addOrder() {
-    ordermanager_.addOrder(::tradeorder::Order(
-        reinterpret_cast<::tradeorder::AddOrder*>(tbuffer_.getBodyBuffer())
-    ));
+    ordermanager_.addOrder(
+        std::forward<::tradeorder::Order>(
+            ::tradeorder::Order(
+                reinterpret_cast<::tradeorder::AddOrder*>(tbuffer_.getBodyBuffer())
+            )
+        )
+    );
+}
+
+inline void ServerConnection::modifyOrder() {
+
+}
+
+inline void ServerConnection::cancelOrder() {
+
+}
+
+inline void ServerConnection::replaceOrder() {
+    
 }

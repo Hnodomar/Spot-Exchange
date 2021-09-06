@@ -5,7 +5,6 @@
 #include <map>
 #include "order.hpp"
 #include "level.hpp"
-#include "limit.hpp"
 
 namespace server {
 namespace tradeorder {
@@ -14,7 +13,7 @@ public:
     OrderBook() {
         
     }
-    void addOrder(::tradeorder::Order order) {
+    void addOrder(::tradeorder::Order&& order) {
         std::map<price, Level>& sidebook = order.getSide() == 'B' ? bids_ : asks_;
         auto lvlitr = sidebook.find(order.getPrice());
         if (lvlitr == sidebook.end()) {
@@ -38,6 +37,9 @@ public:
             limit.prev_limit = limit_temp;
             limit_temp->next_limit = &limit;
         }
+    }
+    void modifyOrder() {
+
     }
 private:
     uint64_t ticker_;
