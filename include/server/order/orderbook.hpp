@@ -39,13 +39,15 @@ public:
         }
     }
     void modifyOrder() {
-
+        
     }
 private:
     uint64_t ticker_;
-    using price = uint64_t; using size = uint64_t;
-    std::map<price, Level> bids_, asks_;
-    std::unordered_map<uint64_t, Limit> limitorders_;
+    using price = uint64_t;
+    using order_id = uint64_t;
+    std::map<price, Level> asks_;
+    std::map<price, Level, std::greater<price>> bids_;
+    std::unordered_map<order_id, Limit> limitorders_;
 };
 }
 }

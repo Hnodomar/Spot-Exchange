@@ -18,6 +18,7 @@ struct Level {
     }
     Limit* head = nullptr;
     Limit* tail = nullptr;
+    uint64_t price = 0;
 };
 }
 }
