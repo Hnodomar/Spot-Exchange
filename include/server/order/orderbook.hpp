@@ -12,6 +12,7 @@ namespace server {
 namespace tradeorder {
 using price = uint64_t;
 using order_id = uint64_t;
+using Order = ::tradeorder::Order;
 using askbook = std::map<price, Level>;
 using bidbook = std::map<price, Level, std::greater<price>>;
 class OrderBook {
@@ -22,11 +23,16 @@ public:
     {}
     void addOrder(::tradeorder::Order&& order) {
         Level* level = nullptr;
-        if (order.getSide() == 'B')
+        MatchResult match_result;
+        if (order.getSide() == 'B') {
+            match_result = MatchBids(order, bids_);
             level = &getSideLevel(order.getPrice(), bids_);
-        else
+        }
+        else {
+            match_result = MatchAsks(order, asks_);
             level = &getSideLevel(order.getPrice(), asks_);
-        auto limitr = limitorders_.emplace(order.getOrderID(), Limit(order, *level));
+        }
+        auto limitr = limitorders_.emplace(order.getOrderID(), Limit(order));
         if (!limitr.second)
             return;
         Limit& limit = limitr.first->second;
@@ -61,8 +67,8 @@ private:
     askbook asks_;
     bidbook bids_;
     std::unordered_map<order_id, Limit> limitorders_;
-    MatchResult (*MatchBids)(Limit& order_to_match, bidbook& bids);
-    MatchResult (*MatchAsks)(Limit& order_to_match, askbook& bids);
+    MatchResult (*MatchBids)(Order& order_to_match, bidbook& bids);
+    MatchResult (*MatchAsks)(Order& order_to_match, askbook& bids);
 };
 }
 }
