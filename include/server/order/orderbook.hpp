@@ -5,35 +5,36 @@
 #include <map>
 #include "order.hpp"
 #include "level.hpp"
+#include <boost/any.hpp>
 
 namespace server {
 namespace tradeorder {
+using price = uint64_t;
+using order_id = uint64_t;
+using askbook = std::map<price, Level>;
+using bidbook = std::map<price, Level, std::greater<price>>;
 class OrderBook {
 public:
     OrderBook() {
         
     }
     void addOrder(::tradeorder::Order&& order) {
-        std::map<price, Level>& sidebook = order.getSide() == 'B' ? bids_ : asks_;
-        auto lvlitr = sidebook.find(order.getPrice());
-        if (lvlitr == sidebook.end()) {
-            auto ret = sidebook.emplace(order.getPrice(), Level());
-            if (!ret.second)
-                return;
-            lvlitr = ret.first;
-        }
-        Level& level = lvlitr->second;
-        auto limitr = limitorders_.emplace(order.getOrderID(), Limit(order, level));
+        Level* level = nullptr;
+        if (order.getSide() == 'B')
+            level = &getSideLevel(order.getPrice(), bids_);
+        else
+            level = &getSideLevel(order.getPrice(), asks_);
+        auto limitr = limitorders_.emplace(order.getOrderID(), Limit(order, *level));
         if (!limitr.second)
             return;
         Limit& limit = limitr.first->second;
-        if (level.head == nullptr) {
-            level.head = &limit;
-            level.tail = &limit;
+        if (level->head == nullptr) {
+            level->head = &limit;
+            level->tail = &limit;
         }
         else {
-            Limit* limit_temp = level.tail;
-            level.tail = &limit;
+            Limit* limit_temp = level->tail;
+            level->tail = &limit;
             limit.prev_limit = limit_temp;
             limit_temp->next_limit = &limit;
         }
@@ -42,11 +43,21 @@ public:
         
     }
 private:
+    template<typename T>
+    Level& getSideLevel(const uint64_t price, T sidebook) {
+        auto lvlitr = sidebook.find(price);
+        if (lvlitr == sidebook.end()) {
+            auto ret = sidebook.emplace(price, Level());
+            if (!ret.second) {
+                // error
+            }
+            lvlitr = ret.first;
+        }
+        return lvlitr->second;
+    }
     uint64_t ticker_;
-    using price = uint64_t;
-    using order_id = uint64_t;
-    std::map<price, Level> asks_;
-    std::map<price, Level, std::greater<price>> bids_;
+    askbook asks_;
+    bidbook bids_;
     std::unordered_map<order_id, Limit> limitorders_;
 };
 }
