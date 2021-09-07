@@ -43,14 +43,23 @@ MatchResult FIFOMatch(Order& order_to_match, T& book) {
             uint16_t fill_qty = std::min(book_qty, order_to_match.getCurrQty());
             order_to_match.decreaseQty(fill_qty);
             book_lim->order.decreaseQty(fill_qty);
+            int64_t filltime = getUnixTimestamp();
             match_result.addFill(
-                getUnixTimestamp(), 
+                filltime,
+                order_to_match.getTicker(),
                 book_lim->order.getOrderID(), 
-                order_to_match.getOrderID(),
+                book_lim->order.getPrice(),
                 fill_qty,
-                fill_qty == book_qty    
+                book_lim->order.getCurrQty() == 0
             );
-
+            match_result.addFill(
+                filltime,
+                order_to_match.getTicker(),
+                order_to_match.getOrderID(),
+                book_lim->order.getPrice(),
+                fill_qty,
+                order_to_match.getCurrQty() == 0
+            );
             if (order_to_match.getCurrQty() == 0) { //order doesnt get added
                 match_result.setOrderFilled();
                 return match_result;

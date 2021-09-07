@@ -23,6 +23,9 @@ public:
     uint numFills() {
         return fills_.size();
     }
+    std::vector<Fill>& getFills() {
+        return fills_;
+    }
 private:
     std::vector<Fill> fills_;
     bool order_filled_ = false;

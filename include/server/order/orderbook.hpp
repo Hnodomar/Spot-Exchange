@@ -35,6 +35,9 @@ public:
             match_result = MatchAsks(order, asks_);
             level = &getSideLevel(order.getPrice(), asks_);
         }
+        if (processMatchResults(match_result)) {
+            return;
+        }
         if (match_result.orderCompletelyFilled()) { // no need to add
             return;
         }
@@ -68,6 +71,14 @@ private:
             lvlitr = ret.first;
         }
         return lvlitr->second;
+    }
+    bool processMatchResults(MatchResult match_result) {
+        for (const auto& fill : match_result.getFills()) {
+            if (fill.full_fill) {
+                limitorders_.erase(fill.order_id);
+            }
+        }
+        return match_result.orderCompletelyFilled();
     }
     uint64_t ticker_;
     askbook asks_;
