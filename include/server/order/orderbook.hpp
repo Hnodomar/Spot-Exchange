@@ -5,6 +5,7 @@
 #include <map>
 #include "order.hpp"
 #include "level.hpp"
+#include "fifomatching.hpp"
 #include <boost/any.hpp>
 
 namespace server {
@@ -15,9 +16,10 @@ using askbook = std::map<price, Level>;
 using bidbook = std::map<price, Level, std::greater<price>>;
 class OrderBook {
 public:
-    OrderBook() {
-        
-    }
+    OrderBook() : 
+        MatchBids(&server::matching::FIFOMatch<bidbook>),
+        MatchAsks(&server::matching::FIFOMatch<askbook>) 
+    {}
     void addOrder(::tradeorder::Order&& order) {
         Level* level = nullptr;
         if (order.getSide() == 'B')
@@ -59,6 +61,8 @@ private:
     askbook asks_;
     bidbook bids_;
     std::unordered_map<order_id, Limit> limitorders_;
+    MatchResult (*MatchBids)(Limit& order_to_match, bidbook& bids);
+    MatchResult (*MatchAsks)(Limit& order_to_match, askbook& bids);
 };
 }
 }
