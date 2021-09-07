@@ -4,7 +4,7 @@
 #include <cstdint>
 
 // POD-ish struct for fillupdates
-
+namespace info {
 struct Fill {
     uint64_t unix_time;
     uint64_t order_filled_id;
@@ -12,5 +12,6 @@ struct Fill {
     uint16_t fill_qty;
     uint8_t full_fill;
 };
+}
 
 #endif

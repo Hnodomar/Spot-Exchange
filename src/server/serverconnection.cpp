@@ -69,7 +69,7 @@ inline void ServerConnection::addOrder() {
     ordermanager_.addOrder(
         std::forward<::tradeorder::Order>(
             ::tradeorder::Order(
-                reinterpret_cast<::tradeorder::AddOrder*>(tbuffer_.getBodyBuffer())
+                reinterpret_cast<::info::AddOrder*>(tbuffer_.getBodyBuffer())
             )
         )
     );

@@ -6,7 +6,7 @@
 // POD structs for cheap C-style casts
 // standard prohibits compiler reordering of struct memory layout
 // for the sake of C compatibility
-namespace tradeorder {
+namespace info {
 struct AddOrder {
     uint64_t order_id;
     uint8_t side;

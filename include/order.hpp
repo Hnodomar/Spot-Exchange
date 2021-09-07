@@ -14,7 +14,7 @@ constexpr uint8_t MAX_BODY_LEN = 20;
 
 class Order {
 public: 
-    Order(AddOrder* addorder_pod): 
+    Order(info::AddOrder* addorder_pod): 
         side_(addorder_pod->side),
         price_(addorder_pod->price),
         order_id_(addorder_pod->order_id),

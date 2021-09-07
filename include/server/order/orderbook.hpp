@@ -15,12 +15,15 @@ using order_id = uint64_t;
 using Order = ::tradeorder::Order;
 using askbook = std::map<price, Level>;
 using bidbook = std::map<price, Level, std::greater<price>>;
+using MatchResult = server::matching::MatchResult;
+using BidMatcher = MatchResult (*)(Order&, bidbook&);
+using AskMatcher = MatchResult (*)(Order&, askbook&);
 class OrderBook {
 public:
-    OrderBook() : 
-        MatchBids(&server::matching::FIFOMatch<bidbook>),
-        MatchAsks(&server::matching::FIFOMatch<askbook>) 
-    {}
+    OrderBook(
+        BidMatcher bidmatcher = &server::matching::FIFOMatch<bidbook>, 
+        AskMatcher askmatcher = &server::matching::FIFOMatch<askbook>
+    ): MatchBids(bidmatcher), MatchAsks(askmatcher) {}
     void addOrder(::tradeorder::Order&& order) {
         Level* level = nullptr;
         MatchResult match_result;
@@ -31,6 +34,9 @@ public:
         else {
             match_result = MatchAsks(order, asks_);
             level = &getSideLevel(order.getPrice(), asks_);
+        }
+        if (match_result.orderCompletelyFilled()) { // no need to add
+            return;
         }
         auto limitr = limitorders_.emplace(order.getOrderID(), Limit(order));
         if (!limitr.second)

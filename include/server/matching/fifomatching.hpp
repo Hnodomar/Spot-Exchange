@@ -6,6 +6,7 @@
 
 #include "matchresult.hpp"
 #include "level.hpp"
+#include "util.hpp"
 
 namespace server {
 namespace matching {
@@ -42,7 +43,16 @@ MatchResult FIFOMatch(Order& order_to_match, T& book) {
             uint16_t fill_qty = std::min(book_qty, order_to_match.getCurrQty());
             order_to_match.decreaseQty(fill_qty);
             book_lim->order.decreaseQty(fill_qty);
+            match_result.addFill(
+                getUnixTimestamp(), 
+                book_lim->order.getOrderID(), 
+                order_to_match.getOrderID(),
+                fill_qty,
+                fill_qty == book_qty    
+            );
+
             if (order_to_match.getCurrQty() == 0) { //order doesnt get added
+                match_result.setOrderFilled();
                 return match_result;
             }
             Limit* temp_lim = book_lim->next_limit;
