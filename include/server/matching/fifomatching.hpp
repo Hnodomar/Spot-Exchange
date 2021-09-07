@@ -17,11 +17,11 @@ using Limit = server::tradeorder::Limit;
 using askbook = std::map<price, Level>;
 using bidbook = std::map<price, Level, std::greater<price>>;
 
-bool comparePrices(bidbook&, uint64_t order_price, uint64_t bid_price) {
+static bool comparePrices(bidbook&, uint64_t order_price, uint64_t bid_price) {
     return order_price > bid_price;
 }
 
-bool comparePrices(askbook&, uint64_t order_price, uint64_t ask_price) {
+static bool comparePrices(askbook&, uint64_t order_price, uint64_t ask_price) {
     return order_price < ask_price;
 }
 
@@ -43,7 +43,7 @@ MatchResult FIFOMatch(Order& order_to_match, T& book) {
             uint16_t fill_qty = std::min(book_qty, order_to_match.getCurrQty());
             order_to_match.decreaseQty(fill_qty);
             book_lim->order.decreaseQty(fill_qty);
-            int64_t filltime = getUnixTimestamp();
+            int64_t filltime = ::util::getUnixTimestamp();
             match_result.addFill(
                 filltime,
                 order_to_match.getTicker(),

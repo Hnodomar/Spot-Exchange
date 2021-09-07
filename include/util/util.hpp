@@ -5,8 +5,8 @@
 #include <cstdint>
 
 // misc utility functions
-
-int64_t getUnixTimestamp() {
+namespace util {
+static int64_t getUnixTimestamp() {
     using time = std::chrono::system_clock;
     auto now = time::now();
     int64_t tnow = time::to_time_t(now);
@@ -17,6 +17,6 @@ int64_t getUnixTimestamp() {
     auto midnight = time::from_time_t(std::mktime(date));
     return std::chrono::duration_cast<std::chrono::nanoseconds>(now - midnight).count();
 }
-
+}
 
 #endif

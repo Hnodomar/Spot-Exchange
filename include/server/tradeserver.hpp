@@ -10,6 +10,7 @@
 #include "logger.hpp"
 #include "serverconnection.hpp"
 #include "ordermanager.hpp"
+#include "datafeed.hpp"
 
 namespace server {
 using tcp = boost::asio::ip::tcp;
@@ -23,6 +24,7 @@ private:
     tcp::acceptor listener_;
     logging::Logger logger_;
     tradeorder::OrderManager ordermanager_;
+    DataFeed datafeed_;
 };
 }
 

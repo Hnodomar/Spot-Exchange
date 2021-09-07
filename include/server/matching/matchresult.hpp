@@ -8,10 +8,10 @@ namespace matching {
 using Fill = ::info::Fill;
 class MatchResult {
 public:
-    void addFill(int64_t timestamp, uint64_t order_filled_id, 
-    uint64_t opposing_order_id, uint16_t fill_qty, uint8_t full_fill) {
+    void addFill(int64_t timestamp, uint64_t ticker, uint64_t order_id, 
+    uint64_t price, uint16_t fill_qty, uint8_t full_fill) {
         fills_.emplace_back(
-            timestamp, order_filled_id, opposing_order_id, fill_qty, full_fill
+            timestamp, ticker, order_id, price, fill_qty, full_fill
         );
     }
     bool orderCompletelyFilled() {

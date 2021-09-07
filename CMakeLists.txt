@@ -8,7 +8,14 @@ set(BOOST_MIN_VERSION "1.70.0")
 find_package(Boost REQUIRED COMPONENTS iostreams thread)
 
 file(GLOB server_src src/server/*.cpp)
-file(GLOB server_inc include/server inlcude/server/matching include/server/order include/util)
+
+file(GLOB server_inc
+    ${PROJECT_SOURCE_DIR}/include/server
+    ${PROJECT_SOURCE_DIR}/include/server/matching
+    ${PROJECT_SOURCE_DIR}/include/server/order
+    ${PROJECT_SOURCE_DIR}/include/util
+    ${PROJECT_SOURCE_DIR}/include/info
+)
 
 add_executable(tradeserver ${server_src})
 target_include_directories(tradeserver PUBLIC ${server_inc})

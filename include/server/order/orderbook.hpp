@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <map>
 #include "order.hpp"
-#include "level.hpp"
 #include "fifomatching.hpp"
 #include <boost/any.hpp>
 
@@ -26,20 +25,15 @@ public:
     ): MatchBids(bidmatcher), MatchAsks(askmatcher) {}
     void addOrder(::tradeorder::Order&& order) {
         Level* level = nullptr;
-        MatchResult match_result;
         if (order.getSide() == 'B') {
-            match_result = MatchBids(order, bids_);
+            if (processMatchResults(MatchBids(order, bids_)))
+                return;
             level = &getSideLevel(order.getPrice(), bids_);
         }
         else {
-            match_result = MatchAsks(order, asks_);
+            if (processMatchResults(MatchAsks(order, asks_)))
+                return;
             level = &getSideLevel(order.getPrice(), asks_);
-        }
-        if (processMatchResults(match_result)) {
-            return;
-        }
-        if (match_result.orderCompletelyFilled()) { // no need to add
-            return;
         }
         auto limitr = limitorders_.emplace(order.getOrderID(), Limit(order));
         if (!limitr.second)
