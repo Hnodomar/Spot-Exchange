@@ -1,4 +1,0 @@
-[submodule "lib/grpc"]
-	path = lib/grpc
-	url = https://github.com/Hnodomar/Trading-Engine/grpc
-    branch = v1.38.0
