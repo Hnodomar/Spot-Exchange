@@ -56,33 +56,33 @@ else (${Protobuf_FOUND})
     endif()
 endif (${Protobuf_FOUND})
 
-get_filename_component(rg_proto "geolocation.proto" ABSOLUTE)
-get_filename_component(rg_proto_path "${rg_proto}" PATH)
+get_filename_component(oe_proto "src/dataprovider/orderentry.proto" ABSOLUTE)
+get_filename_component(oe_proto_path "${oe_proto}" PATH)
 
-set(rg_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/route_guide.pb.cc")
-set(rg_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/route_guide.pb.h")
-set(rg_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/route_guide.grpc.pb.cc")
-set(rg_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/route_guide.grpc.pb.h")
+set(oe_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/orderentry.pb.cc")
+set(oe_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/orderentry.pb.h")
+set(oe_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/orderentry.grpc.pb.cc")
+set(oe_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/orderentry.grpc.pb.h")
 add_custom_command(
-    OUTPUT "${rg_proto_srcs}" "${rg_proto_hdrs}" "${rg_grpc_srcs}" "${rg_grpc_hdrs}"
+    OUTPUT "${oe_proto_srcs}" "${oe_proto_hdrs}" "${oe_grpc_srcs}" "${oe_grpc_hdrs}"
     COMMAND ${_PROTOBUF_PROTOC}
     ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
         --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
-        -I "${rg_proto_path}"
+        -I "${oe_proto_path}"
         --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
-        "${rg_proto}"
-    DEPENDS "${rg_proto}"
+        "${oe_proto}"
+    DEPENDS "${oe_proto}"
 )
 
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
-add_library(rg_grpc_proto
-    ${rg_grpc_srcs}
-    ${rg_grpc_hdrs}
-    ${rg_proto_srcs}
-    ${rg_proto_hdrs}
+add_library(oe_grpc_proto
+    ${oe_grpc_srcs}
+    ${oe_grpc_hdrs}
+    ${oe_proto_srcs}
+    ${oe_proto_hdrs}
 )
-target_link_libraries(rg_grpc_proto
+target_link_libraries(oe_grpc_proto
     ${_REFLECTION}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF}
@@ -92,7 +92,7 @@ add_executable(tradeserver ${server_src})
 target_include_directories(tradeserver PUBLIC ${server_inc})
 target_link_libraries(tradeserver 
     ${Boost_LIBRARIES} 
-    ${rp_grpc_proto}
+    ${oe_grpc_proto}
     ${_REFLECTION}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF}

@@ -1,0 +1,107 @@
+syntax = "proto3";
+import "google/protobuf/timestamp.proto";
+package orderentry;
+
+service OrderEntryService {
+    rpc OrderEntry(stream OrderEntryRequest) returns (stream OrderEntryResponse) {}
+}
+
+message OrderEntryRequest {
+    oneof OrderEntryType {
+        NewOrder new_order = 1;
+        ModifyOrder modify_order = 2;
+        CancelOrder cancel_order = 3;
+    }
+}
+
+message OrderCommon {
+    uint64 order_id = 1;
+    uint64 ticker = 2;
+    string username = 3;
+}
+
+message NewOrder {
+    OrderCommon order_common = 1;
+    uint32 quantity = 2;
+    bool is_buy_side = 3;
+    int64 price = 4;
+}
+
+message ModifyOrder {
+    OrderCommon order_common = 1;
+    uint32 quantity = 2;
+    bool is_buy_side = 3;
+    int64 price = 4;
+}
+
+message CancelOrder {
+    OrderCommon order_common = 1;
+}
+
+message OrderEntryResponse {
+    oneof OrderStatusType {
+        NewOrderStatus new_order_ack = 1;
+        ModifyOrderStatus modify_order_ack = 2;
+        CancelOrderStatus cancel_order_ack = 3;
+    }
+    oneof ResponseType {
+        OrderEntryFill fill = 4;
+        OrderEntryRejection rejection = 5;
+    }
+}
+
+message OrderStatusCommon {
+    uint64 order_id = 1;
+    uint32 ticker = 2;
+    string username = 3;
+}
+
+message NewOrderStatus {
+    google.protobuf.Timestamp timestamp = 1;
+    OrderStatusCommon status_common = 2;
+    uint32 quantity = 3;
+    bool is_buy_side = 4;
+    uint64 price = 5;
+}
+
+message ModifyOrderStatus {
+    google.protobuf.Timestamp timestamp = 1;
+    OrderStatusCommon status_common = 2;
+    uint32 quantity = 3;
+    bool is_buy_side = 4;
+    uint64 price = 5;
+}
+
+message CancelOrderStatus {
+    google.protobuf.Timestamp timestamp = 1;
+    OrderStatusCommon status_common = 2;
+}
+
+message OrderEntryRejection {
+    enum RejectionReason {
+        unknown = 0;
+        order_not_found = 1;
+        order_id_already_present = 2;
+        orderbook_not_found = 3;
+        ticker_not_found = 4;
+        modify_wrong_side = 5;
+        modification_trivial = 6;
+    }
+    OrderCommon order_common = 1;
+    RejectionReason rejection_response = 2;
+}
+
+message OrderEntryFill {
+    enum FillAllocationAlgo {
+        unknown = 0;
+        fifo = 1;
+        lifo = 2;
+        prorata = 3;
+    }
+    google.protobuf.Timestamp timestamp = 1;
+    OrderStatusCommon status_common = 2;
+    bool complete_fill = 3;
+    uint32 fill_quantity = 4;
+    uint64 fill_id = 5;
+    FillAllocationAlgo alloc_algo = 6;
+}
