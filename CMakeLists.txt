@@ -20,7 +20,6 @@ file(GLOB server_inc
 find_package(Protobuf CONFIG)
 if (${Protobuf_FOUND})
     set(protobuf_MODULE_COMPATIBLE TRUE)
-    find_package(Protobuf CONFIG REQUIRED)
     set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
     set(_REFLECTION gRPC::grpc++_reflection)
     if(CMAKE_CROSSCOMPILING)
@@ -37,7 +36,7 @@ if (${Protobuf_FOUND})
         set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
     endif ()
 else (${Protobuf_FOUND})
-    message(STATUS "Could not find gRPC, fetching content")
+    message(STATUS "Could not find gRPC, fetching content. This might take a while")
     include(FetchContent)
     FetchContent_Declare(
         grpc
