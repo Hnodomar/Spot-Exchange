@@ -3,7 +3,9 @@
 using namespace server;
 
 TradeServer::TradeServer(char* port, const std::string& outputfile="") 
-: logger_(outputfile), rpc_processor_(taglist_, taglist_mutex_, condv_) {
+  : logger_(outputfile)
+  , rpc_processor_(taglist_, taglist_mutex_, condv_)
+  , msg_factory_(google::protobuf::MessageFactory::generated_factory()) {
     std::string server_address("0.0.0.0:" + std::string(port));
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
@@ -46,15 +48,31 @@ void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_en
     using namespace ::tradeorder;
     switch(order_type) {
         case type::kNewOrder: {
+            auto itr = entry_order_responders_.find(job);
+            if (itr == entry_order_responders_.end()) {
+                // error
+                return; 
+            }
             auto new_order = order_entry->new_order();
             auto order_common = new_order.order_common();
+            orderentry::OrderEntryResponse neworder_ack;
+            auto noa_status = neworder_ack.mutable_new_order_ack();
+            noa_status->set_is_buy_side(new_order.is_buy_side());
+            noa_status->set_quantity(new_order.quantity());
+            noa_status->set_price(new_order.price());
+            auto ack_com = noa_status->mutable_status_common();
+            ack_com->set_order_id(order_common.order_id());
+            ack_com->set_ticker(order_common.ticker());
+            ack_com->set_username(order_common.username());
+            noa_status->set_timestamp(util::getUnixTimestamp());
+            itr->second.send_resp(&neworder_ack);
             ordermanager_.addOrder(
                 Order(
                     new_order.is_buy_side(),
-                    static_cast<uint64_t>(new_order.price()),
-                    static_cast<uint64_t>(order_common.order_id()),
-                    static_cast<uint64_t>(order_common.ticker()),
-                    static_cast<uint32_t>(new_order.quantity()),
+                    new_order.price(),
+                    order_common.order_id(),
+                    order_common.ticker(),
+                    new_order.quantity(),
                     order_common.username()
                 )
             );
