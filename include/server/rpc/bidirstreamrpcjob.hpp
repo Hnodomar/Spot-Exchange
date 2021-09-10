@@ -107,8 +107,8 @@ private:
     grpc::ServerContext server_context_;
     RequestType request_;
     JobHandlers job_handlers_;
-    JobHandlers::SendResponseHandler send_response_handler_;
-    JobHandlers::GRPCResponder grpc_responder_;
+    typename JobHandlers::SendResponseHandler send_response_handler_;
+    typename JobHandlers::GRPCResponder grpc_responder_;
     TagProcessor on_init_;
     TagProcessor on_read_;
     TagProcessor on_write_;

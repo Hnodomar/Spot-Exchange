@@ -1,5 +1,5 @@
-#ifndef UNARY_STREAM_RPC_JOB_HPP
-#define UNARY_STREAM_RPC_JOB_HPP
+#ifndef UNARY_RPC_JOB_HPP
+#define UNARY_RPC_JOB_HPP
 
 #include <list>
 #include "jobhandlers.hpp"
@@ -48,8 +48,7 @@ private:
             if (ok) {
                 job_handlers_.processRequestHandler(service_, this, &request_);
             }
-            else
-                GPR_ASSERT(ok);
+            else GPR_ASSERT(ok);
         }
     }
     void onFinish(bool ok) {

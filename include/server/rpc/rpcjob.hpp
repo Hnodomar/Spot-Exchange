@@ -26,7 +26,7 @@ public:
                 read_in_progress_ = true;
                 break;
             case AsyncOperationType::WRITE:
-                write_in_progress_ = false;
+                write_in_progress_ = true;
                 break;
             default:
                 break;
