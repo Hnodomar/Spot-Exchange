@@ -41,7 +41,39 @@ void TradeServer::orderEntryDone(ServiceType* service, RPCJob* job, bool) {
 }
 
 void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_entry) {
-
+    auto order_type = order_entry->OrderEntryType_case();
+    using type = OERequestType::OrderEntryTypeCase;
+    using namespace ::tradeorder;
+    switch(order_type) {
+        case type::kNewOrder: {
+            auto new_order = order_entry->new_order();
+            auto order_common = new_order.order_common();
+            ordermanager_.addOrder(
+                Order(
+                    new_order.is_buy_side(),
+                    static_cast<uint64_t>(new_order.price()),
+                    static_cast<uint64_t>(order_common.order_id()),
+                    static_cast<uint64_t>(order_common.ticker()),
+                    static_cast<uint32_t>(new_order.quantity()),
+                    order_common.username()
+                )
+            );
+            break;
+        }
+        case type::kModifyOrder: {
+            auto modify_order = order_entry->modify_order();
+            auto order_common = modify_order.order_common();
+            break;
+        }
+        case type::kCancelOrder: {
+            auto cancel_order = order_entry->cancel_order();
+            auto order_common = cancel_order.order_common();
+            break;
+        }
+        default:
+            // log
+            break;
+    }
 }
 
 void TradeServer::handleRemoteProcedureCalls() {

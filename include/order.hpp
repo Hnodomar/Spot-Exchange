@@ -3,7 +3,6 @@
 
 #include <cstdint>
 #include <string>
-#include <cstring>
 
 #include "exception.hpp"
 #include "ordertypes.hpp"
@@ -14,16 +13,17 @@ constexpr uint8_t MAX_BODY_LEN = 20;
 
 class Order {
 public: 
-    Order(info::AddOrder* addorder_pod): 
-        side_(addorder_pod->side),
-        price_(addorder_pod->price),
-        order_id_(addorder_pod->order_id),
-        ticker_(addorder_pod->ticker),
-        initial_quantity_(addorder_pod->quantity),
-        current_quantity_(addorder_pod->quantity) {
-        std::memcpy(username_, addorder_pod->username, 20);
-    }
-    uint8_t getSide() const {return side_;}
+    Order(const uint8_t is_buy_side, uint64_t price, const uint64_t order_id, 
+        const uint64_t ticker, uint32_t quantity, const std::string& username)
+        : is_buy_side_(is_buy_side)
+        , price_(price)
+        , order_id_(order_id)
+        , ticker_(ticker)
+        , initial_quantity_(quantity)
+        , current_quantity_(quantity)
+        , username_(username) 
+    {}
+    uint8_t getSide() const {return is_buy_side_;}
     uint64_t getPrice() const {return price_;}
     uint64_t getOrderID() const {return order_id_;}
     uint64_t getTicker() const {return ticker_;}
@@ -39,17 +39,17 @@ public:
         }
         current_quantity_ -= qty_delta;
     }
-    const std::string getUsername() {
-        return std::string(reinterpret_cast<const char*>(username_));
+    const std::string& getUsername() {
+        return username_;
     }
 private:
-    const uint8_t side_;
+    const uint8_t is_buy_side_;
     uint64_t price_;
     const uint64_t order_id_;
     const uint64_t ticker_;
     uint16_t initial_quantity_;
     uint16_t current_quantity_;
-    uint8_t username_[20] = {0};
+    const std::string username_;
 };
 
 }
