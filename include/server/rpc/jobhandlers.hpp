@@ -4,7 +4,6 @@
 #include <functional>
 #include <grpc/grpc.h>
 #include <grpc++/server_context.h>
-#include <grpc++/support/async_stream.h>
 
 #include "rpcjob.hpp"
 
@@ -27,7 +26,7 @@ struct BiDirectionalStreamHandler : public JobHandlers<ServiceType, RequestType,
     using QueueRequestHandler = std::function<void(
         ServiceType*, grpc::ServerContext*, GRPCResponder*, grpc::CompletionQueue*, grpc::ServerCompletionQueue*, void*
     )>;
-    QueueRequestHandler queue_req_handler;
+    QueueRequestHandler queueReqHandler;
 };
 
 template<typename ServiceType, typename RequestType, typename ResponseType>
@@ -36,7 +35,7 @@ struct ServerStreamHandler : public JobHandlers<ServiceType, RequestType, Respon
     using QueueRequestHandler = std::function<void(
         ServiceType*, grpc::ServerContext*, RequestType*, GRPCResponder*, grpc::CompletionQueue*, grpc::ServerCompletionQueue*, void*
     )>;
-    QueueRequestHandler queue_req_handler;
+    QueueRequestHandler queueReqHandler;
 };
 
 #endif
