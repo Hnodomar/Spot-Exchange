@@ -9,7 +9,7 @@ MatchResult OrderManager::addOrder(::tradeorder::Order&& order) {
             order.getTicker(), OrderBook()
         );
         if (!ret.second)
-            return;
+            return MatchResult();
         itr = ret.first;
     }
     return itr->second.addOrder(std::forward<::tradeorder::Order>(order));

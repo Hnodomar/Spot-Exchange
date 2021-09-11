@@ -15,6 +15,7 @@ file(GLOB server_inc
     ${PROJECT_SOURCE_DIR}/include/server/order
     ${PROJECT_SOURCE_DIR}/include/util
     ${PROJECT_SOURCE_DIR}/include/info
+    ${PROJECT_SOURCE_DIR}/include/server/rpc
 )
 
 find_package(Protobuf CONFIG)
@@ -91,7 +92,7 @@ add_executable(tradeserver ${server_src})
 target_include_directories(tradeserver PUBLIC ${server_inc})
 target_link_libraries(tradeserver 
     ${Boost_LIBRARIES} 
-    ${oe_grpc_proto}
+    oe_grpc_proto
     ${_REFLECTION}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF}

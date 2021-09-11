@@ -56,6 +56,19 @@ private:
         const orderentry::OrderCommon& new_order_common,
         OrderEntryResponder* responder
     );
+    static void sendModifyOrderAcknowledgement(
+        const orderentry::ModifyOrder& modify_order,
+        const orderentry::OrderCommon& modify_order_common,
+        OrderEntryResponder* responder
+    );
+    static void sendCancelOrderAcknowledgement(
+        const orderentry::CancelOrder& cancel_order,
+        OrderEntryResponder* responder
+    );
+    static void checkUserID(
+        const orderentry::OrderCommon&
+        
+    );
     static void sendWrongUserIDRejection(
         OrderEntryResponder* responder,
         uint64_t correct_id,
@@ -74,16 +87,16 @@ private:
 
     logging::Logger logger_;
     std::mutex taglist_mutex_;
-    static tradeorder::OrderManager ordermanager_;
+    inline static tradeorder::OrderManager ordermanager_;
     std::unique_ptr<grpc::Server> trade_server_;
     std::unique_ptr<grpc::ServerCompletionQueue> cq_;
     orderentry::OrderEntryService::AsyncService order_entry_service_;
     static MsgFactory arena_;
     std::list<RPC::CallbackTag> taglist_;
     RPC::RPCProcessor rpc_processor_;
-    static std::unordered_map<RPCJob*, OrderEntryResponder> entry_order_responders_;
+    inline static std::unordered_map<RPCJob*, OrderEntryResponder> entry_order_responders_;
     using user_id = uint64_t;
-    static std::unordered_map<user_id, RPCJob*> client_streams_;
+    inline static std::unordered_map<user_id, RPCJob*> client_streams_;
 };
 }
 

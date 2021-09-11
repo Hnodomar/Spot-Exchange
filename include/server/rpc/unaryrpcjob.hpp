@@ -2,6 +2,7 @@
 #define UNARY_RPC_JOB_HPP
 
 #include <list>
+
 #include "jobhandlers.hpp"
 #include "rpcjob.hpp"
 
@@ -39,7 +40,7 @@ private:
             return false;
         response_ = *response;
         asyncOperationStarted(RPCJob::AsyncOperationType::FINISH);
-        grpc_responder_.Finish(response_, grpc::STATUS::OK, &on_finish_);
+        grpc_responder_.Finish(response_, grpc::Status::OK, &on_finish_);
         return true;
     }
     void onRead(bool ok) {

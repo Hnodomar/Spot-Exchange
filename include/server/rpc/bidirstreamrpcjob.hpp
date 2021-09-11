@@ -1,9 +1,12 @@
 #ifndef BIDIRECTIONAL_RPC_JOB_HPP
 #define BIDIRECTIONAL_RPC_JOB_HPP
 
+#include <grpcpp/grpcpp.h>
+#include <list>
+
 #include "rpcjob.hpp"
 #include "jobhandlers.hpp"
-#include <list>
+
 
 template<typename ServiceType, typename RequestType, typename ResponseType>
 class BiDirStreamRPCJob : public RPCJob {
@@ -17,13 +20,13 @@ public:
         job_handlers_(job_handlers),
         server_stream_done_(false),
         client_stream_done_(false) {
-        on_init_ = std::bind(&BiDirectionalRPCJob::onInit, this, std::placeholders::_1);
-        on_read_ = std::bind(&BiDirectionalRPCJob::onRead, this, std::placeholders::_1);
-        on_write_ = std::bind(&BiDirectionalRPCJob::onRead, this, std::placeholders::_1);
-        on_finish_ = std::bind(&BiDirectionalRPCJob::onFinish, this, std::placeholders::_1);
+        on_init_ = std::bind(&BiDirStreamRPCJob::onInit, this, std::placeholders::_1);
+        on_read_ = std::bind(&BiDirStreamRPCJob::onRead, this, std::placeholders::_1);
+        on_write_ = std::bind(&BiDirStreamRPCJob::onRead, this, std::placeholders::_1);
+        on_finish_ = std::bind(&BiDirStreamRPCJob::onFinish, this, std::placeholders::_1);
         on_done_ = std::bind(&RPCJob::onDone, this, std::placeholders::_1);
         server_context_.AsyncNotifyWhenDone(&on_done_);
-        send_response_handler_ = std::bind(&BiDirectionalRPCJob::sendResponse, this, std::placeholders::_1);
+        send_response_handler_ = std::bind(&BiDirStreamRPCJob::sendResponse, this, std::placeholders::_1);
         job_handlers_.rpcJobContextHandler(service_, this, &server_context_, send_response_handler_);
         asyncOperationStarted(RPCJob::AsyncOperationType::QUEUED_REQUEST);
         job_handlers_.queueReqHandler(
@@ -106,9 +109,9 @@ private:
     grpc::ServerCompletionQueue* completion_queue_;
     grpc::ServerContext server_context_;
     RequestType request_;
+    typename JobHandlers::GRPCResponder grpc_responder_;
     JobHandlers job_handlers_;
     typename JobHandlers::SendResponseHandler send_response_handler_;
-    typename JobHandlers::GRPCResponder grpc_responder_;
     TagProcessor on_init_;
     TagProcessor on_read_;
     TagProcessor on_write_;

@@ -4,7 +4,7 @@ using namespace server;
 
 TradeServer::TradeServer(char* port, const std::string& outputfile="") 
   : logger_(outputfile)
-  , rpc_processor_(taglist_, taglist_mutex_, condv_) {
+  , rpc_processor_(taglist_, taglist_mutex_) {
     initStatics();
     std::string server_address("0.0.0.0:" + std::string(port));
     grpc::ServerBuilder builder;
@@ -38,6 +38,7 @@ grpc::ServerContext* serv_context, std::function<bool(OEResponseType*)> send_res
 }
 void TradeServer::orderEntryDone(ServiceType* service, RPCJob* job, bool) {
     entry_order_responders_.erase(job);
+    client_streams_.erase(job->getUserID());
     delete job;
 }
 
@@ -89,6 +90,7 @@ void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_en
             break;
         }
         case type::kModifyOrder: {
+
             auto modify_order = order_entry->modify_order();
             auto order_common = modify_order.order_common();
             break;
@@ -149,7 +151,7 @@ const orderentry::OrderCommon& new_order_common, OrderEntryResponder* responder)
 
 void TradeServer::handleRemoteProcedureCalls() {
     makeOrderEntryRPC();
-    std::thread rpcprocessing(&rpc_processor_);
+    std::thread rpcprocessing(std::ref(rpc_processor_));
     RPC::CallbackTag cb_tag;
     for (;;) { // main grpc tag loop
         GPR_ASSERT(cq_->Next((void**)&cb_tag.callback_fn, &cb_tag.ok));

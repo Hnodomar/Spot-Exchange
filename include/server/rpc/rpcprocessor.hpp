@@ -32,11 +32,10 @@ struct RPCProcessor {
             }
         }
     }
-    bool is_waiting_;
 private:
+    std::list<CallbackTag>& serv_tags_list_;
     std::mutex& serv_tags_mutex_;
     std::list<CallbackTag> callbacks_;
-    std::list<CallbackTag>& serv_tags_list_;
 };
 
 }

@@ -50,7 +50,8 @@ MatchResult FIFOMatch(Order& order_to_match, T& book) {
                 book_lim->order.getOrderID(), 
                 book_lim->order.getPrice(),
                 fill_qty,
-                book_lim->order.getCurrQty() == 0
+                book_lim->order.getCurrQty() == 0,
+                book_lim->order.getUserID()
             );
             match_result.addFill(
                 filltime,
@@ -58,7 +59,8 @@ MatchResult FIFOMatch(Order& order_to_match, T& book) {
                 order_to_match.getOrderID(),
                 book_lim->order.getPrice(),
                 fill_qty,
-                order_to_match.getCurrQty() == 0
+                order_to_match.getCurrQty() == 0,
+                book_lim->order.getUserID()
             );
             if (order_to_match.getCurrQty() == 0) { //order doesnt get added
                 match_result.setOrderFilled();
