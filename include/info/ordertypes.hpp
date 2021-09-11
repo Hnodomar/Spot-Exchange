@@ -3,29 +3,19 @@
 
 #include <cstdint>
 
-// POD structs for cheap C-style casts
-// standard prohibits compiler reordering of struct memory layout
-// for the sake of C compatibility
 namespace info {
-struct AddOrder {
+struct OrderCommon {
     uint64_t order_id;
-    uint8_t side;
-    uint64_t price;
+    uint64_t user_id;
     uint64_t ticker;
-    uint16_t quantity;
-    uint8_t username[20];
 };
 
-struct ModifyOrder {
-    uint64_t order_id;
-    uint16_t quantity;
-    uint64_t ticker;
-    uint8_t addOrRemove;
+struct ModifyOrder : public OrderCommon {
+    uint32_t quantity;
+    uint8_t is_buy_side;
+    int64_t price;
 };
 
-struct CancelOrder {
-    uint64_t order_id;
-    uint64_t ticker;
-};  
+struct CancelOrder : public OrderCommon {};  
 }
 #endif

@@ -51,32 +51,48 @@ private:
     );
     static void orderEntryDone(ServiceType* service, RPCJob* job, bool);
     static void orderEntryProcessor(RPCJob* job, const OERequestType* order_entry);
+    static void processNewOrder(
+        RPCJob* job, 
+        const OERequestType* add_entry,
+        const OrderEntryResponder* responder
+    );
+    static void processModifyOrder(
+        RPCJob* job, 
+        const OERequestType* modify_entry,
+        const OrderEntryResponder* responder
+    );
+    static void processCancelOrder(
+        RPCJob* job, 
+        const OERequestType* cancel_entry,
+        const OrderEntryResponder* responder
+    );
     static void sendNewOrderAcknowledgement(
         const orderentry::NewOrder& new_order,
         const orderentry::OrderCommon& new_order_common,
-        OrderEntryResponder* responder
+        const OrderEntryResponder* responder
     );
     static void sendModifyOrderAcknowledgement(
         const orderentry::ModifyOrder& modify_order,
         const orderentry::OrderCommon& modify_order_common,
-        OrderEntryResponder* responder
+        const OrderEntryResponder* responder
     );
     static void sendCancelOrderAcknowledgement(
         const orderentry::CancelOrder& cancel_order,
-        OrderEntryResponder* responder
+        const OrderEntryResponder* responder
     );
-    static void checkUserID(
-        const orderentry::OrderCommon&
-        
+    static bool userIDTaken(
+        const orderentry::OrderCommon& common,
+        const uint64_t job_id,
+        const OrderEntryResponder* responder
     );
     static void sendWrongUserIDRejection(
-        OrderEntryResponder* responder,
-        uint64_t correct_id,
+        const OrderEntryResponder* responder,
+        const uint64_t correct_id,
         const orderentry::OrderCommon& order_common
     );
-    static void processMatchResults(
-        matching::MatchResult match_results, 
-        OrderEntryResponder* responder
+    static void processOrderResult(
+        info::OrderResult order_result, 
+        const OrderEntryResponder* responder
     );
     void makeMarketDataRPC();
     inline static OEResponseType neworder_ack_; // re-use messages to avoid memory allocation overhead

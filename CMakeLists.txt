@@ -7,7 +7,11 @@ set(BOOST_MIN_VERSION "1.70.0")
 
 find_package(Boost REQUIRED COMPONENTS iostreams thread)
 
-file(GLOB server_src src/server/*.cpp)
+file(GLOB server_src 
+    ${PROJECT_SOURCE_DIR}/src/server/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/server/matching/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/server/order/*.cpp
+)
 
 file(GLOB server_inc
     ${PROJECT_SOURCE_DIR}/include/server

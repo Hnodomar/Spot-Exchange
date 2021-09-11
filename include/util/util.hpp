@@ -6,7 +6,7 @@
 
 // misc utility functions
 namespace util {
-static int64_t getUnixTimestamp() {
+static inline int64_t getUnixTimestamp() {
     using time = std::chrono::system_clock;
     auto now = time::now();
     int64_t tnow = time::to_time_t(now);

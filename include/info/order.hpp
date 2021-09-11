@@ -8,9 +8,6 @@
 #include "ordertypes.hpp"
 
 namespace tradeorder {
-constexpr uint8_t HEADER_LEN = 2;
-constexpr uint8_t MAX_BODY_LEN = 20;
-
 class Order {
 public: 
     Order(const uint8_t is_buy_side, uint64_t price, const uint64_t order_id, 
@@ -23,7 +20,7 @@ public:
         , current_quantity_(quantity)
         , user_id_(user_id) 
     {}
-    uint8_t getSide() const {return is_buy_side_;}
+    uint8_t isBuySide() const {return is_buy_side_;}
     uint64_t getPrice() const {return price_;}
     uint64_t getOrderID() const {return order_id_;}
     uint64_t getTicker() const {return ticker_;}

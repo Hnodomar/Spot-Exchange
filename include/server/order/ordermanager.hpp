@@ -6,15 +6,15 @@
 
 #include "order.hpp"
 #include "orderbook.hpp"
-#include "matchresult.hpp"
+#include "orderresult.hpp"
 
 namespace server {
 namespace tradeorder {
 class OrderManager {
 public:
-    MatchResult addOrder(::tradeorder::Order&& order);
-    void modifyOrder(::info::ModifyOrder* modify_order);
-    void cancelOrder();
+    OrderResult addOrder(::tradeorder::Order&& order);
+    OrderResult modifyOrder(info::ModifyOrder& modify_order);
+    OrderResult cancelOrder(info::CancelOrder& cancel_order);
 private:
     using order_id = uint64_t; using ticker = uint64_t;
     using book_index = uint64_t;
