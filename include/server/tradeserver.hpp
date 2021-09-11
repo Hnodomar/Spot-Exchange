@@ -9,6 +9,7 @@
 #include <mutex>
 #include <grpcpp/grpcpp.h>
 #include <thread>
+#include <google/protobuf/message.h>
 
 #include "logger.hpp"
 #include "ordermanager.hpp"
@@ -17,6 +18,7 @@
 #include "orderentry.grpc.pb.h"
 #include "jobhandlers.hpp"
 #include "rpcprocessor.hpp"
+#include "util.hpp"
 
 using ServiceType = orderentry::OrderEntryService::AsyncService;
 using OERequestType = orderentry::OrderEntryRequest;
@@ -43,17 +45,26 @@ private:
     );
     static void orderEntryDone(ServiceType* service, RPCJob* job, bool);
     static void orderEntryProcessor(RPCJob* job, const OERequestType* order_entry);
+    static void sendNewOrderAcknowledgement(
+        const orderentry::NewOrder& new_order,
+        const orderentry::OrderCommon& new_order_common,
+        OrderEntryResponder* responder
+    );
     void makeMarketDataRPC();
+    static OEResponseType neworder_ack_; // re-use messages to avoid memory allocation overhead
+    static OEResponseType modifyorder_ack_;
+    static OEResponseType cancelorder_ack_;
 
     logging::Logger logger_;
     std::mutex taglist_mutex_;
     std::condition_variable condv_;
-    tradeorder::OrderManager ordermanager_;
+    static tradeorder::OrderManager ordermanager_;
     std::unique_ptr<grpc::Server> trade_server_;
     std::unique_ptr<grpc::ServerCompletionQueue> cq_;
     orderentry::OrderEntryService::AsyncService order_entry_service_;
     std::list<RPC::CallbackTag> taglist_;
     RPC::RPCProcessor rpc_processor_;
+    google::protobuf::MessageFactory* msg_factory_;
     static std::unordered_map<RPCJob*, OrderEntryResponder> entry_order_responders_;
 };
 }

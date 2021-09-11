@@ -53,19 +53,9 @@ void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_en
                 // error
                 return; 
             }
-            auto new_order = order_entry->new_order();
-            auto order_common = new_order.order_common();
-            orderentry::OrderEntryResponse neworder_ack;
-            auto noa_status = neworder_ack.mutable_new_order_ack();
-            noa_status->set_is_buy_side(new_order.is_buy_side());
-            noa_status->set_quantity(new_order.quantity());
-            noa_status->set_price(new_order.price());
-            auto ack_com = noa_status->mutable_status_common();
-            ack_com->set_order_id(order_common.order_id());
-            ack_com->set_ticker(order_common.ticker());
-            ack_com->set_username(order_common.username());
-            noa_status->set_timestamp(util::getUnixTimestamp());
-            itr->second.send_resp(&neworder_ack);
+            const auto& new_order = order_entry->new_order();
+            const auto& order_common = new_order.order_common();
+            sendNewOrderAcknowledgement(new_order, order_common, &itr->second);
             ordermanager_.addOrder(
                 Order(
                     new_order.is_buy_side(),
@@ -92,6 +82,20 @@ void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_en
             // log
             break;
     }
+}
+
+void TradeServer::sendNewOrderAcknowledgement(const orderentry::NewOrder& new_order, 
+const orderentry::OrderCommon& new_order_common, OrderEntryResponder* responder) {
+    auto noa_status = neworder_ack_.mutable_new_order_ack();
+    noa_status->set_is_buy_side(new_order.is_buy_side());
+    noa_status->set_quantity(new_order.quantity());
+    noa_status->set_price(new_order.price());
+    auto noa_com_status = noa_status->mutable_status_common();
+    noa_com_status->set_order_id(new_order_common.order_id());
+    noa_com_status->set_ticker(new_order_common.ticker());
+    noa_com_status->set_username(new_order_common.username());
+    noa_status->set_timestamp(util::getUnixTimestamp());
+    responder->send_resp(&neworder_ack_);
 }
 
 void TradeServer::handleRemoteProcedureCalls() {

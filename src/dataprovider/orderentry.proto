@@ -57,7 +57,7 @@ message OrderStatusCommon {
 }
 
 message NewOrderStatus {
-    google.protobuf.Timestamp timestamp = 1;
+    int64 timestamp = 1;
     OrderStatusCommon status_common = 2;
     uint32 quantity = 3;
     bool is_buy_side = 4;
@@ -65,7 +65,7 @@ message NewOrderStatus {
 }
 
 message ModifyOrderStatus {
-    google.protobuf.Timestamp timestamp = 1;
+    int64 timestamp = 1;
     OrderStatusCommon status_common = 2;
     uint32 quantity = 3;
     bool is_buy_side = 4;
@@ -73,7 +73,7 @@ message ModifyOrderStatus {
 }
 
 message CancelOrderStatus {
-    google.protobuf.Timestamp timestamp = 1;
+    int64 timestamp = 1;
     OrderStatusCommon status_common = 2;
 }
 
@@ -98,7 +98,7 @@ message OrderEntryFill {
         lifo = 2;
         prorata = 3;
     }
-    google.protobuf.Timestamp timestamp = 1;
+    int64 timestamp = 1;
     OrderStatusCommon status_common = 2;
     bool complete_fill = 3;
     uint32 fill_quantity = 4;
