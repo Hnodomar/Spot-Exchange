@@ -28,8 +28,8 @@ public:
         AskMatcher askmatcher = &server::matching::FIFOMatch<askbook>
     ): MatchBids(bidmatcher), MatchAsks(askmatcher) {}
     OrderResult addOrder(::tradeorder::Order&& order);
-    OrderResult modifyOrder(info::ModifyOrder& modify_order);
-    OrderResult cancelOrder(info::CancelOrder& cancel_order);
+    OrderResult modifyOrder(const info::ModifyOrder& modify_order);
+    OrderResult cancelOrder(const info::CancelOrder& cancel_order);
 private:
     template<typename T>
     Level& getSideLevel(const uint64_t price, T sidebook);

@@ -104,17 +104,45 @@ const OrderEntryResponder* responder) {
 
 void TradeServer::processModifyOrder(RPCJob* job, const OERequestType* modify_entry,
 const OrderEntryResponder* responder) {
+    using namespace info;
     auto modify_order = modify_entry->modify_order();
     auto order_common = modify_order.order_common();
     if (userIDTaken(order_common, job->getUserID(), responder)) {
         return;
     }
+    processOrderResult(
+        ordermanager_.modifyOrder(
+            ModifyOrder(
+                modify_order.quantity(),
+                modify_order.is_buy_side(),
+                modify_order.price(),
+                order_common.order_id(),
+                order_common.user_id(),
+                order_common.ticker()
+            )
+        ),
+        responder
+    );
 }
 
 void TradeServer::processCancelOrder(RPCJob* job, const OERequestType* cancel_entry,
 const OrderEntryResponder* responder) {
+    using namespace info;
     auto cancel_order = cancel_entry->cancel_order();
     auto order_common = cancel_order.order_common();
+    if (userIDTaken(order_common, job->getUserID(), responder)) {
+        return;
+    }
+    processOrderResult(
+        ordermanager_.cancelOrder(
+            CancelOrder(
+                order_common.order_id(),
+                order_common.user_id(),
+                order_common.ticker()
+            )
+        ),
+        responder
+    );
 }
 
 bool TradeServer::userIDTaken(const orderentry::OrderCommon& common, const uint64_t job_id,
@@ -139,8 +167,9 @@ const orderentry::OrderCommon& order_common) {
 
 void TradeServer::processOrderResult(info::OrderResult order_result, const OrderEntryResponder* responder) {
     if (order_result.rejection != info::RejectionReason::no_rejection) {
-        // 
-        //responder->send_resp();
+        auto rejection = rejection_ack_.mutable_rejection();
+        rejection->set_rejection_response(getRejectionType(order_result.rejection));
+        responder->send_resp(&rejection_ack_);
         return;
     }
     for (const auto& fill : order_result.match_result.getFills()) {
@@ -156,6 +185,31 @@ void TradeServer::processOrderResult(info::OrderResult order_result, const Order
         entry_order_responders_[itr->second].send_resp(
             &orderfill_ack_
         );
+    }
+}
+
+const OrderRejection TradeServer::getRejectionType(info::RejectionReason rejection) {
+    using reject = info::RejectionReason;
+    using oereject = orderentry::OrderEntryRejection;
+    switch(rejection) {
+        case reject::unknown:
+            return oereject::unknown;
+        case reject::order_not_found:
+            return oereject::order_not_found;
+        case reject::order_id_already_present:
+            return oereject::order_id_already_present;
+        case reject::orderbook_not_found:
+            return oereject::orderbook_not_found;
+        case reject::ticker_not_found:
+            return oereject::ticker_not_found;
+        case reject::modify_wrong_side:
+            return oereject::modify_wrong_side;
+        case reject::modification_trivial:
+            return oereject::modification_trivial;
+        case reject::wrong_user_id:
+            return oereject::wrong_user_id;
+        default:
+            return oereject::unknown;
     }
 }
 

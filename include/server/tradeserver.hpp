@@ -25,6 +25,7 @@ using ServiceType = orderentry::OrderEntryService::AsyncService;
 using OERequestType = orderentry::OrderEntryRequest;
 using OEResponseType = orderentry::OrderEntryResponse;
 using MsgFactory = google::protobuf::Arena;
+using OrderRejection = orderentry::OrderEntryRejection::RejectionReason;
 
 namespace server {
 class TradeServer {
@@ -94,6 +95,10 @@ private:
         info::OrderResult order_result, 
         const OrderEntryResponder* responder
     );
+    static const OrderRejection getRejectionType(
+        info::RejectionReason rejection
+    );
+
     void makeMarketDataRPC();
     inline static OEResponseType neworder_ack_; // re-use messages to avoid memory allocation overhead
     inline static OEResponseType modifyorder_ack_;

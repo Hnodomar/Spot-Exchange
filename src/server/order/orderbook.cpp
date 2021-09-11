@@ -40,7 +40,7 @@ OrderResult OrderBook::addOrder(tradeorder::Order&& order) {
     return order_result;
 }
 
-OrderResult OrderBook::modifyOrder(info::ModifyOrder& modify_order) {
+OrderResult OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
     auto itr = limitorders_.find(modify_order.order_id);
     if (itr == limitorders_.end()) {
         return OrderResult(info::RejectionReason::order_not_found);
@@ -53,7 +53,7 @@ OrderResult OrderBook::modifyOrder(info::ModifyOrder& modify_order) {
     return OrderResult(); //return modify order ack
 }
 
-OrderResult OrderBook::cancelOrder(info::CancelOrder& cancel_order) {
+OrderResult OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
     auto itr = limitorders_.find(cancel_order.order_id);
     if (itr == limitorders_.end()) {
         return OrderResult(info::RejectionReason::order_not_found);

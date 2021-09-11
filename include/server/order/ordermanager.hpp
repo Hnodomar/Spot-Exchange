@@ -13,8 +13,8 @@ namespace tradeorder {
 class OrderManager {
 public:
     OrderResult addOrder(::tradeorder::Order&& order);
-    OrderResult modifyOrder(info::ModifyOrder& modify_order);
-    OrderResult cancelOrder(info::CancelOrder& cancel_order);
+    OrderResult modifyOrder(const info::ModifyOrder& modify_order);
+    OrderResult cancelOrder(const info::CancelOrder& cancel_order);
 private:
     using order_id = uint64_t; using ticker = uint64_t;
     using book_index = uint64_t;
