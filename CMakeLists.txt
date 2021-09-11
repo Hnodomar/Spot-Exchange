@@ -22,6 +22,8 @@ file(GLOB server_inc
     ${PROJECT_SOURCE_DIR}/include/server/rpc
 )
 
+add_subdirectory(tests ${CMAKE_CURRENT_BINARY_DIR})
+
 find_package(Protobuf CONFIG)
 if (${Protobuf_FOUND})
     set(protobuf_MODULE_COMPATIBLE TRUE)
