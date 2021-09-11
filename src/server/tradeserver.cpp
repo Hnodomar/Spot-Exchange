@@ -4,8 +4,8 @@ using namespace server;
 
 TradeServer::TradeServer(char* port, const std::string& outputfile="") 
   : logger_(outputfile)
-  , rpc_processor_(taglist_, taglist_mutex_, condv_)
-  , msg_factory_(google::protobuf::MessageFactory::generated_factory()) {
+  , rpc_processor_(taglist_, taglist_mutex_, condv_) {
+    initStatics();
     std::string server_address("0.0.0.0:" + std::string(port));
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
@@ -36,35 +36,55 @@ grpc::ServerContext* serv_context, std::function<bool(OEResponseType*)> send_res
     responder.server_context = serv_context;
     entry_order_responders_.emplace(job, responder);
 }
-
 void TradeServer::orderEntryDone(ServiceType* service, RPCJob* job, bool) {
     entry_order_responders_.erase(job);
     delete job;
 }
 
 void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_entry) {
+    if (order_entry == nullptr) {
+        return; // error
+    }
     auto order_type = order_entry->OrderEntryType_case();
     using type = OERequestType::OrderEntryTypeCase;
     using namespace ::tradeorder;
+    using namespace server::matching;
     switch(order_type) {
         case type::kNewOrder: {
-            auto itr = entry_order_responders_.find(job);
-            if (itr == entry_order_responders_.end()) {
-                // error
-                return; 
+            auto responderitr = entry_order_responders_.find(job);
+            if (responderitr == entry_order_responders_.end()) {
+                throw EngineException(
+                    "Unable to find entry order responder for order entry ID "
+                    + order_entry->new_order().order_common().order_id()
+                );
             }
             const auto& new_order = order_entry->new_order();
             const auto& order_common = new_order.order_common();
-            sendNewOrderAcknowledgement(new_order, order_common, &itr->second);
-            ordermanager_.addOrder(
-                Order(
-                    new_order.is_buy_side(),
-                    new_order.price(),
-                    order_common.order_id(),
-                    order_common.ticker(),
-                    new_order.quantity(),
-                    order_common.username()
-                )
+            if (order_common.user_id() != job->getUserID()) {
+                sendWrongUserIDRejection(
+                    &responderitr->second, 
+                    job->getUserID(),
+                    order_common
+                );
+                return;
+            }
+            const auto userid_itr = client_streams_.find(order_common.user_id());
+            if (userid_itr == client_streams_.end()) {
+                client_streams_.emplace(order_common.user_id(), job);
+            }
+            sendNewOrderAcknowledgement(new_order, order_common, &responderitr->second);
+            processMatchResults(
+                ordermanager_.addOrder(
+                    Order(
+                        new_order.is_buy_side(),
+                        new_order.price(),
+                        order_common.order_id(),
+                        order_common.ticker(),
+                        new_order.quantity(),
+                        order_common.user_id()
+                    )
+                ),
+                &responderitr->second
             );
             break;
         }
@@ -84,6 +104,35 @@ void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_en
     }
 }
 
+void TradeServer::sendWrongUserIDRejection(OrderEntryResponder* responder, uint64_t correct_id,
+const orderentry::OrderCommon& order_common) {
+    auto rejection = rejection_ack_.mutable_rejection();
+    auto common = rejection->mutable_order_common();
+    common->set_user_id(correct_id);
+    common->set_ticker(order_common.ticker());
+    common->set_order_id(order_common.order_id());
+    rejection->set_rejection_response(orderentry::OrderEntryRejection::wrong_user_id);
+    responder->send_resp(&rejection_ack_);
+}
+
+void TradeServer::processMatchResults(matching::MatchResult match_result,
+OrderEntryResponder* responder) {
+    for (const auto& fill : match_result.getFills()) {
+        auto fill_ack = orderfill_ack_.mutable_fill();
+        fill_ack->set_timestamp(fill.timestamp);
+        fill_ack->set_fill_quantity(fill.fill_qty);
+        fill_ack->set_complete_fill(fill.full_fill);
+        // fill_ack->set_fill_id(fill.fill_id);
+        auto itr = client_streams_.find(fill.user_id);
+        if (itr == client_streams_.end()) {
+            return; // error
+        }
+        entry_order_responders_[itr->second].send_resp(
+            &orderfill_ack_
+        );
+    }
+}
+
 void TradeServer::sendNewOrderAcknowledgement(const orderentry::NewOrder& new_order, 
 const orderentry::OrderCommon& new_order_common, OrderEntryResponder* responder) {
     auto noa_status = neworder_ack_.mutable_new_order_ack();
@@ -93,7 +142,7 @@ const orderentry::OrderCommon& new_order_common, OrderEntryResponder* responder)
     auto noa_com_status = noa_status->mutable_status_common();
     noa_com_status->set_order_id(new_order_common.order_id());
     noa_com_status->set_ticker(new_order_common.ticker());
-    noa_com_status->set_username(new_order_common.username());
+    noa_com_status->set_user_id(new_order_common.user_id());
     noa_status->set_timestamp(util::getUnixTimestamp());
     responder->send_resp(&neworder_ack_);
 }
@@ -107,7 +156,6 @@ void TradeServer::handleRemoteProcedureCalls() {
         taglist_mutex_.lock();
         taglist_.push_back(cb_tag);
         taglist_mutex_.unlock();
-        condv_.notify_one();
     }
 }
 

@@ -48,13 +48,13 @@ private:
     void onRead(bool ok) {
         if (asyncOperationFinished(RPCJob::AsyncOperationType::READ)) {
             if (ok) {
-                job_handlers_.processRequestHandler(service_, this, &request);
+                job_handlers_.processRequestHandler(this, &request_);
                 asyncOperationStarted(RPCJob::AsyncOperationType::READ);
-                grpc_responder_.Read(&request, &on_read_);
+                grpc_responder_.Read(&request_, &on_read_);
             }
             else {
                 client_stream_done_ = true;
-                job_handlers_.processRequestHandler(service_, this, nullptr);
+                //job_handlers_.processRequestHandler(service_, this, nullptr);
             }
         }
     }

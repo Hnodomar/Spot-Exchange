@@ -14,14 +14,14 @@ constexpr uint8_t MAX_BODY_LEN = 20;
 class Order {
 public: 
     Order(const uint8_t is_buy_side, uint64_t price, const uint64_t order_id, 
-        const uint64_t ticker, uint32_t quantity, const std::string& username)
+        const uint64_t ticker, uint32_t quantity, const uint64_t user_id)
         : is_buy_side_(is_buy_side)
         , price_(price)
         , order_id_(order_id)
         , ticker_(ticker)
         , initial_quantity_(quantity)
         , current_quantity_(quantity)
-        , username_(username) 
+        , user_id_(user_id) 
     {}
     uint8_t getSide() const {return is_buy_side_;}
     uint64_t getPrice() const {return price_;}
@@ -39,8 +39,8 @@ public:
         }
         current_quantity_ -= qty_delta;
     }
-    const std::string& getUsername() {
-        return username_;
+    const uint64_t getUserID() {
+        return user_id_;
     }
 private:
     const uint8_t is_buy_side_;
@@ -49,7 +49,7 @@ private:
     const uint64_t ticker_;
     uint16_t initial_quantity_;
     uint16_t current_quantity_;
-    const std::string username_;
+    const uint64_t user_id_;
 };
 
 }

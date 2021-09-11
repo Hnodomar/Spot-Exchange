@@ -3,9 +3,10 @@
 
 #include <cstdint>
 #include <map>
+
 #include "order.hpp"
 #include "fifomatching.hpp"
-#include <boost/any.hpp>
+#include "exception.hpp"
 
 namespace server {
 namespace tradeorder {
@@ -23,21 +24,28 @@ public:
         BidMatcher bidmatcher = &server::matching::FIFOMatch<bidbook>, 
         AskMatcher askmatcher = &server::matching::FIFOMatch<askbook>
     ): MatchBids(bidmatcher), MatchAsks(askmatcher) {}
-    void addOrder(::tradeorder::Order&& order) {
+    MatchResult addOrder(::tradeorder::Order&& order) {
         Level* level = nullptr;
+        MatchResult match_result;
         if (order.getSide() == 'B') {
-            if (processMatchResults(MatchBids(order, bids_)))
-                return;
+            match_result = MatchBids(order, bids_);
+            if (processMatchResults(match_result))
+                return match_result;
             level = &getSideLevel(order.getPrice(), bids_);
         }
         else {
-            if (processMatchResults(MatchAsks(order, asks_)))
-                return;
+            match_result = MatchAsks(order, asks_);
+            if (processMatchResults(match_result))
+                return match_result;
             level = &getSideLevel(order.getPrice(), asks_);
         }
         auto limitr = limitorders_.emplace(order.getOrderID(), Limit(order));
-        if (!limitr.second)
-            return;
+        if (!limitr.second) {
+            throw EngineException(
+                "Unable to emplace new order in limitorder book, Book ID: "
+                + std::to_string(ticker_) + " Order ID: " + std::to_string(order.getOrderID())
+            );
+        }
         Limit& limit = limitr.first->second;
         if (level->head == nullptr) {
             level->head = &limit;
@@ -49,9 +57,14 @@ public:
             limit.prev_limit = limit_temp;
             limit_temp->next_limit = &limit;
         }
+        return match_result;
     }
-    void modifyOrder() {
-        
+    void modifyOrder(::info::ModifyOrder* modify_order) {
+        auto itr = limitorders_.find(modify_order->order_id);
+        if (itr == limitorders_.end())
+            return; //error
+        auto& limit = itr->second;
+        limit.order.decreaseQty(modify_order->quantity);
     }
 private:
     template<typename T>

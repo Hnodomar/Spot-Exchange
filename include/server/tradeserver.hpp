@@ -10,6 +10,7 @@
 #include <grpcpp/grpcpp.h>
 #include <thread>
 #include <google/protobuf/message.h>
+#include <google/protobuf/arena.h>
 
 #include "logger.hpp"
 #include "ordermanager.hpp"
@@ -23,6 +24,7 @@
 using ServiceType = orderentry::OrderEntryService::AsyncService;
 using OERequestType = orderentry::OrderEntryRequest;
 using OEResponseType = orderentry::OrderEntryResponse;
+using MsgFactory = google::protobuf::Arena;
 
 namespace server {
 class TradeServer {
@@ -30,6 +32,10 @@ public:
     TradeServer(char* port, const std::string& filename);
     ~TradeServer();
 private:
+    void initStatics() { // to avoid static initialisation UB
+        entry_order_responders_.find(nullptr);
+        client_streams_.find(12);
+    }
     void handleRemoteProcedureCalls();
     struct OrderEntryResponder {
         std::function<bool(OEResponseType*)> send_resp;
@@ -50,22 +56,34 @@ private:
         const orderentry::OrderCommon& new_order_common,
         OrderEntryResponder* responder
     );
+    static void sendWrongUserIDRejection(
+        OrderEntryResponder* responder,
+        uint64_t correct_id,
+        const orderentry::OrderCommon& order_common
+    );
+    static void processMatchResults(
+        matching::MatchResult match_results, 
+        OrderEntryResponder* responder
+    );
     void makeMarketDataRPC();
-    static OEResponseType neworder_ack_; // re-use messages to avoid memory allocation overhead
-    static OEResponseType modifyorder_ack_;
-    static OEResponseType cancelorder_ack_;
+    inline static OEResponseType neworder_ack_; // re-use messages to avoid memory allocation overhead
+    inline static OEResponseType modifyorder_ack_;
+    inline static OEResponseType cancelorder_ack_;
+    inline static OEResponseType orderfill_ack_;
+    inline static OEResponseType rejection_ack_;
 
     logging::Logger logger_;
     std::mutex taglist_mutex_;
-    std::condition_variable condv_;
     static tradeorder::OrderManager ordermanager_;
     std::unique_ptr<grpc::Server> trade_server_;
     std::unique_ptr<grpc::ServerCompletionQueue> cq_;
     orderentry::OrderEntryService::AsyncService order_entry_service_;
+    static MsgFactory arena_;
     std::list<RPC::CallbackTag> taglist_;
     RPC::RPCProcessor rpc_processor_;
-    google::protobuf::MessageFactory* msg_factory_;
     static std::unordered_map<RPCJob*, OrderEntryResponder> entry_order_responders_;
+    using user_id = uint64_t;
+    static std::unordered_map<user_id, RPCJob*> client_streams_;
 };
 }
 

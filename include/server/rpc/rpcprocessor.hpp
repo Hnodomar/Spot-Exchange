@@ -15,19 +15,14 @@ struct CallbackTag {
 struct RPCProcessor {
     RPCProcessor(
         std::list<CallbackTag>& serv_taglist_ref,
-        std::mutex& serv_tags_mutex,
-        std::condition_variable& condv)
+        std::mutex& serv_tags_mutex
+        )
         : serv_tags_list_(serv_taglist_ref)
         , serv_tags_mutex_(serv_tags_mutex)
-        , condv_(condv)
     {}
     void operator()() {
-        std::unique_lock<std::mutex> lk(serv_tags_mutex_);
         for(;;) {
-            condv_.wait(
-                lk, 
-                [this](){return !serv_tags_list_.empty();}
-            );
+            serv_tags_mutex_.lock();
             callbacks_ = std::move(serv_tags_list_);
             serv_tags_mutex_.unlock();
             while (!callbacks_.empty()) {
@@ -37,8 +32,8 @@ struct RPCProcessor {
             }
         }
     }
+    bool is_waiting_;
 private:
-    std::condition_variable& condv_;
     std::mutex& serv_tags_mutex_;
     std::list<CallbackTag> callbacks_;
     std::list<CallbackTag>& serv_tags_list_;
