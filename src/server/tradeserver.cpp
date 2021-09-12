@@ -75,7 +75,7 @@ void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_en
 
 void TradeServer::processNewOrder(RPCJob* job, const OERequestType* order_entry,
 const OrderEntryResponder* responder) {
-    using namespace ::tradeorder;
+    using namespace tradeorder;
     using namespace server::matching;
     const auto& new_order = order_entry->new_order();
     const auto& order_common = new_order.order_common();
@@ -87,19 +87,17 @@ const OrderEntryResponder* responder) {
         client_streams_.emplace(order_common.user_id(), job);
     }
     sendNewOrderAcknowledgement(new_order, order_common, responder);
-    processOrderResult(
-        ordermanager_.addOrder(
-            Order(
-                new_order.is_buy_side(),
-                new_order.price(),
-                order_common.order_id(),
-                order_common.ticker(),
-                new_order.quantity(),
-                order_common.user_id()
-            )
-        ),
-        responder
+    Order order(
+        new_order.is_buy_side(),
+        new_order.price(),
+        new_order.quantity(),
+        info::OrderCommon(
+            order_common.order_id(),
+            order_common.user_id(),
+            order_common.ticker()
+        )
     );
+    processOrderResult(ordermanager_.addOrder(order), responder);
 }
 
 void TradeServer::processModifyOrder(RPCJob* job, const OERequestType* modify_entry,
@@ -166,13 +164,26 @@ const orderentry::OrderCommon& order_common) {
 }
 
 void TradeServer::processOrderResult(info::OrderResult order_result, const OrderEntryResponder* responder) {
-    if (order_result.rejection != info::RejectionReason::no_rejection) {
-        auto rejection = rejection_ack_.mutable_rejection();
-        rejection->set_rejection_response(getRejectionType(order_result.rejection));
-        responder->send_resp(&rejection_ack_);
-        return;
+    auto order_status = order_result.order_status_present;
+    using StatusPresent = info::OrderStatusPresent;
+    switch(order_status) {
+        case StatusPresent::RejectionPresent: {
+            auto rejection = rejection_ack_.mutable_rejection();
+            rejection->set_rejection_response(getRejectionType(order_result.orderstatus.rejection));
+            responder->send_resp(&rejection_ack_);
+            return;
+        }
+        case StatusPresent::NewOrderPresent:
+        case StatusPresent::ModifyOrderPresent: 
+        case StatusPresent::CancelOrderPresent: 
+        default:
+            break;
     }
-    for (const auto& fill : order_result.match_result.getFills()) {
+
+    if (order_result.match_result == std::nullopt)
+        return;
+
+    for (const auto& fill : order_result.match_result->getFills()) {
         auto fill_ack = orderfill_ack_.mutable_fill();
         fill_ack->set_timestamp(fill.timestamp);
         fill_ack->set_fill_quantity(fill.fill_qty);

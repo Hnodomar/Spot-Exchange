@@ -22,7 +22,8 @@ file(GLOB server_inc
     ${PROJECT_SOURCE_DIR}/include/server/rpc
 )
 
-add_subdirectory(tests ${CMAKE_CURRENT_BINARY_DIR})
+enable_testing()
+add_subdirectory(tests)
 
 find_package(Protobuf CONFIG)
 if (${Protobuf_FOUND})

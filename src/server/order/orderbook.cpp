@@ -2,7 +2,7 @@
 
 using namespace server::tradeorder;
 
-OrderResult OrderBook::addOrder(tradeorder::Order&& order) {
+OrderResult OrderBook::addOrder(tradeorder::Order& order) {
     if (limitorders_.find(order.getOrderID()) != limitorders_.end()) {
         return OrderResult(info::RejectionReason::order_id_already_present);
     }
@@ -16,7 +16,7 @@ OrderResult OrderBook::addOrder(tradeorder::Order&& order) {
         order_result.match_result = MatchAsks(order, asks_, limitorders_);
         level = &getSideLevel(order.getPrice(), asks_);
     }
-    if (order_result.match_result.orderCompletelyFilled()) {
+    if (order_result.match_result->orderCompletelyFilled()) {
         return order_result;
     }
     auto limitr = limitorders_.emplace(order.getOrderID(), Limit(order));
@@ -37,6 +37,7 @@ OrderResult OrderBook::addOrder(tradeorder::Order&& order) {
         limit.prev_limit = limit_temp;
         limit_temp->next_limit = &limit;
     }
+    populateNewOrderStatus(order, order_result);
     return order_result;
 }
 
@@ -49,8 +50,10 @@ OrderResult OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
     if (limit.order.isBuySide() != modify_order.is_buy_side) {
         return OrderResult(info::RejectionReason::modify_wrong_side);
     }
+    OrderResult order_result;
+    populateModifyOrderStatus(modify_order, order_result);
     limit.order.decreaseQty(modify_order.quantity);
-    return OrderResult(); //return modify order ack
+    return order_result; //return modify order ack
 }
 
 OrderResult OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
@@ -59,7 +62,9 @@ OrderResult OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
         return OrderResult(info::RejectionReason::order_not_found);
     }
     limitorders_.erase(itr);
-    return OrderResult(); // return cancel order ack
+    OrderResult cancel_result;
+    populateCancelOrderStatus(cancel_order, cancel_result);
+    return cancel_result; // return cancel order ack
 }
 
 template<typename Side>
@@ -73,4 +78,40 @@ Level& OrderBook::getSideLevel(const uint64_t price, Side sidebook) {
         lvlitr = ret.first;
     }
     return lvlitr->second;
+}
+
+void OrderBook::populateNewOrderStatus(const tradeorder::Order& order, 
+OrderResult& order_result) const {
+    auto order_status = order_result.orderstatus.new_order_status;
+    order_status.is_buy_side = order.isBuySide();
+    order_status.order_id = order.getOrderID();
+    order_status.ticker = order.getTicker();
+    order_status.user_id = order.getUserID();
+    order_status.quantity = order.getCurrQty();
+    order_status.price = order.getPrice();
+    order_status.timestamp = util::getUnixTimestamp();
+    order_result.order_status_present = info::OrderStatusPresent::NewOrderPresent;
+}
+
+void OrderBook::populateModifyOrderStatus(const info::ModifyOrder& order, 
+OrderResult& order_result) const {
+    auto order_status = order_result.orderstatus.modify_order_status;
+    order_status.is_buy_side = order.is_buy_side;
+    order_status.order_id = order.order_id;
+    order_status.ticker = order.ticker;
+    order_status.user_id = order.user_id;
+    order_status.quantity = order.quantity;
+    order_status.price = order.price;
+    order_status.timestamp = util::getUnixTimestamp();
+    order_result.order_status_present = info::OrderStatusPresent::ModifyOrderPresent;
+}
+
+void OrderBook::populateCancelOrderStatus(const info::CancelOrder& order, 
+OrderResult& order_result) const {
+    auto order_status = order_result.orderstatus.cancel_order_status;
+    order_status.order_id = order.order_id;
+    order_status.user_id = order.user_id;
+    order_status.ticker = order.ticker;
+    order_status.timestamp = util::getUnixTimestamp();
+    order_result.order_status_present = info::OrderStatusPresent::CancelOrderPresent;
 }

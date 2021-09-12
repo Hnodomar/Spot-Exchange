@@ -26,12 +26,24 @@ public:
         BidMatcher bidmatcher = &server::matching::FIFOMatch<bidbook>, 
         AskMatcher askmatcher = &server::matching::FIFOMatch<askbook>
     ): MatchBids(bidmatcher), MatchAsks(askmatcher) {}
-    OrderResult addOrder(::tradeorder::Order&& order);
+    OrderResult addOrder(tradeorder::Order& order);
     OrderResult modifyOrder(const info::ModifyOrder& modify_order);
     OrderResult cancelOrder(const info::CancelOrder& cancel_order);
 private:
     template<typename T>
     Level& getSideLevel(const uint64_t price, T sidebook);
+    void populateNewOrderStatus(
+        const tradeorder::Order& order,
+        OrderResult& order_result
+    ) const;
+    void populateModifyOrderStatus(
+        const info::ModifyOrder& order,
+        OrderResult& order_result
+    ) const;
+    void populateCancelOrderStatus(
+        const info::CancelOrder& order,
+        OrderResult& order_result
+    ) const;
     uint64_t ticker_;
     askbook asks_;
     bidbook bids_;

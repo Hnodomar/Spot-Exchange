@@ -22,7 +22,7 @@ using limitbook = std::unordered_map<order_id, Limit>;
 bool comparePrices(bidbook&, uint64_t order_price, uint64_t bid_price);
 bool comparePrices(askbook&, uint64_t order_price, uint64_t ask_price);
 void addFillsAndEraseLimits(MatchResult& match_result, limitbook& limitbook, Order& order,
-    Limit* book_lim, uint16_t fill_qty);
+    Limit* book_lim, uint32_t fill_qty);
 template <typename T>
 MatchResult FIFOMatch(Order& order_to_match, T& book, limitbook& limitbook);
 

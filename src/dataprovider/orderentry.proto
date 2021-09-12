@@ -52,7 +52,7 @@ message OrderEntryResponse {
 
 message OrderStatusCommon {
     uint64 order_id = 1;
-    uint32 ticker = 2;
+    uint64 ticker = 2;
     uint64 user_id = 3;
 }
 

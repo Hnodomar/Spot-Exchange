@@ -16,8 +16,8 @@ MatchResult FIFOMatch(Order& order_to_match, T& book, limitbook& limitbook) {
             return match_result;
         Limit* book_lim = book_lvl.head;
         while (book_lim != nullptr) {
-            uint16_t book_qty = book_lim->order.getCurrQty();
-            uint16_t fill_qty = std::min(book_qty, order_to_match.getCurrQty());
+            uint32_t book_qty = book_lim->order.getCurrQty();
+            uint32_t fill_qty = std::min(book_qty, order_to_match.getCurrQty());
             order_to_match.decreaseQty(fill_qty);
             book_lim->order.decreaseQty(fill_qty);
             addFillsAndEraseLimits(match_result, limitbook, order_to_match, book_lim, fill_qty);
@@ -37,7 +37,7 @@ MatchResult FIFOMatch(Order& order_to_match, T& book, limitbook& limitbook) {
 }
 
 void addFillsAndEraseLimits(MatchResult& match_result, limitbook& limitbook, 
-Order& order, Limit* book_lim, uint16_t fill_qty) {
+Order& order, Limit* book_lim, uint32_t fill_qty) {
     int64_t filltime = util::getUnixTimestamp();
     bool order_filled = order.getCurrQty() == 0;
     bool book_lim_filled = book_lim->order.getCurrQty() == 0;

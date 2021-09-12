@@ -10,9 +10,9 @@ struct OrderCommon {
     , user_id(user_id)
     , ticker(ticker)
     {}
-    uint64_t order_id;
-    uint64_t user_id;
-    uint64_t ticker;
+    const uint64_t order_id;
+    const uint64_t user_id;
+    const uint64_t ticker;
 };
 
 struct ModifyOrder : public OrderCommon {
@@ -23,9 +23,9 @@ struct ModifyOrder : public OrderCommon {
     , is_buy_side(is_buy_side)
     , price(price)
     {}
-    uint32_t quantity;
-    uint8_t is_buy_side;
-    int64_t price;
+    const uint32_t quantity;
+    const uint8_t is_buy_side;
+    const int64_t price;
 };
 
 struct CancelOrder : public OrderCommon {
