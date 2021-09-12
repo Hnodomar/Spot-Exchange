@@ -29,6 +29,8 @@ public:
     OrderResult addOrder(tradeorder::Order& order);
     OrderResult modifyOrder(const info::ModifyOrder& modify_order);
     OrderResult cancelOrder(const info::CancelOrder& cancel_order);
+    uint64_t numOrders() const {return limitorders_.size();}
+    uint64_t numLevels() const {return asks_.size() + bids_.size();}
 private:
     template<typename T>
     Level& getSideLevel(const uint64_t price, T sidebook);

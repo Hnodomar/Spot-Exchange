@@ -2,6 +2,7 @@
 #define ORDER_RESULT_HPP
 
 #include <optional>
+#include <cstring>
 
 #include "matchresult.hpp"
 #include "orderstatus.hpp"
@@ -33,12 +34,12 @@ struct OrderResult {
     }
     OrderResult() : order_status_present(OrderStatusPresent::NoStatusPresent) {}
     std::optional<MatchResult> match_result;
-    union OrderStatus { // C++11 allows pod structs in union
+    union OrderStatus { // C++11 allows pod-ish structs in union
         info::NewOrderStatus new_order_status;
         info::ModifyOrderStatus modify_order_status;
         info::CancelOrderStatus cancel_order_status;
         RejectionReason rejection;
-        OrderStatus() {memset(this, 0, sizeof(*this));} // must allocate for pod structs w/ non-trivial constructors
+        OrderStatus() {} // must allocate for pod structs w/ non-trivial constructors
     } orderstatus;
     OrderStatusPresent order_status_present;
 };

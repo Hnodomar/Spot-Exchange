@@ -22,6 +22,7 @@ public:
     bool createOrderBook(const std::string& ticker);
     SubscribeResult subscribe(const uint64_t ticker);
     SubscribeResult subscribe(const std::string& ticker);
+    uint64_t numOrderBooks() const {return orderbooks_.size();}
 private:
     ticker convertStrToTicker(const std::string& input);
     std::unordered_map<ticker, OrderBook> orderbooks_;

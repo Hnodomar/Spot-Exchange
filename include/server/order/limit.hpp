@@ -14,6 +14,7 @@ struct Limit {
     ::tradeorder::Order order;
     Limit* next_limit = nullptr;
     Limit* prev_limit = nullptr;
+    Level* current_level = nullptr;
 };
 }
 }
