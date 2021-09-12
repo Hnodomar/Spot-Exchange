@@ -13,7 +13,7 @@
 #include <google/protobuf/arena.h>
 
 #include "logger.hpp"
-#include "ordermanager.hpp"
+#include "orderbookmanager.hpp"
 #include "bidirstreamrpcjob.hpp"
 #include "unaryrpcjob.hpp"
 #include "orderentry.grpc.pb.h"
@@ -108,7 +108,7 @@ private:
 
     logging::Logger logger_;
     std::mutex taglist_mutex_;
-    inline static tradeorder::OrderManager ordermanager_;
+    inline static tradeorder::OrderBookManager ordermanager_;
     std::unique_ptr<grpc::Server> trade_server_;
     std::unique_ptr<grpc::ServerCompletionQueue> cq_;
     orderentry::OrderEntryService::AsyncService order_entry_service_;

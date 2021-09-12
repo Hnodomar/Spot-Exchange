@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <map>
 
-#include "order.hpp"
 #include "fifomatching.hpp"
 #include "orderresult.hpp"
 #include "exception.hpp"
