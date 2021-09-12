@@ -37,6 +37,7 @@ OrderResult OrderBook::addOrder(tradeorder::Order& order) {
         limit.prev_limit = limit_temp;
         limit_temp->next_limit = &limit;
     }
+    limit.current_level = level;
     populateNewOrderStatus(order, order_result);
     return order_result;
 }
@@ -52,7 +53,10 @@ OrderResult OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
     }
     OrderResult order_result;
     populateModifyOrderStatus(modify_order, order_result);
-    limit.order.decreaseQty(modify_order.quantity);
+    if (limit.order.getCurrQty() < modify_order.quantity)
+        limit.order.increaseQty(modify_order.quantity + limit.order.getCurrQty());
+    else
+        limit.order.decreaseQty(limit.order.getCurrQty() - modify_order.quantity);
     return order_result; //return modify order ack
 }
 
@@ -60,6 +64,19 @@ OrderResult OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
     auto itr = limitorders_.find(cancel_order.order_id);
     if (itr == limitorders_.end()) {
         return OrderResult(info::RejectionReason::order_not_found);
+    }
+    Limit& limit = itr->second;
+    if (limit.next_limit == nullptr) {
+        limit.current_level->tail = limit.prev_limit;
+        limit.prev_limit->next_limit = nullptr;
+    }
+    else if (limit.prev_limit == nullptr) {
+        limit.current_level->head = limit.next_limit;
+        limit.next_limit->prev_limit = nullptr;
+    }
+    else {
+        limit.next_limit->prev_limit = limit.prev_limit;
+        limit.prev_limit->next_limit = limit.next_limit;
     }
     limitorders_.erase(itr);
     OrderResult cancel_result;
