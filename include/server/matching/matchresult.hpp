@@ -14,7 +14,7 @@ public:
             timestamp, ticker, order_id, price, fill_qty, full_fill, user_id
         );
     }
-    bool orderCompletelyFilled() {
+    bool orderCompletelyFilled() const {
         return order_filled_;
     }
     void setOrderFilled() {

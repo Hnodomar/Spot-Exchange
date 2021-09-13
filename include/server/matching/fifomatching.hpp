@@ -3,6 +3,7 @@
 
 #include <map>
 #include <functional>
+#include <optional>
 
 #include "matchresult.hpp"
 #include "level.hpp"
@@ -21,10 +22,13 @@ using limitbook = std::unordered_map<order_id, Limit>;
 
 bool comparePrices(bidbook&, uint64_t order_price, uint64_t bid_price);
 bool comparePrices(askbook&, uint64_t order_price, uint64_t ask_price);
-void addFillsAndEraseLimits(MatchResult& match_result, limitbook& limitbook, Order& order,
-    Limit* book_lim, uint32_t fill_qty);
+void addFills(MatchResult& match_result, Order& order, Limit* book_lim, uint32_t fill_qty);
+void popLimitFromQueue(Limit*& book_lim, Level& book_lvl, limitbook& limitbook);
+template<typename Book, typename BookItr>
+inline bool orderFullyMatchedInLevel(Limit*& book_lim, Order& order_to_match, MatchResult& match_result, 
+Level& book_lvl, limitbook& limitbook, Book& book, BookItr& book_itr);
 template <typename T>
-MatchResult FIFOMatch(Order& order_to_match, T& book, limitbook& limitbook);
+std::optional<MatchResult> FIFOMatch(Order& order_to_match, T& book, limitbook& limitbook);
 
 }
 }
