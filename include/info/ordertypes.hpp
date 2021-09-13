@@ -16,16 +16,15 @@ struct OrderCommon {
 };
 
 struct ModifyOrder : public OrderCommon {
-    ModifyOrder(uint32_t quantity, uint8_t is_buy_side, uint64_t price,
-    uint64_t order_id, uint64_t user_id, uint64_t ticker)
-    : OrderCommon(order_id, user_id, ticker)
+    ModifyOrder(uint8_t is_buy_side, uint64_t price, uint32_t quantity,  OrderCommon common)
+    : OrderCommon(common)
     , quantity(quantity)
     , is_buy_side(is_buy_side)
     , price(price)
     {}
     const uint32_t quantity;
     const uint8_t is_buy_side;
-    const int64_t price;
+    const uint64_t price;
 };
 
 struct CancelOrder : public OrderCommon {

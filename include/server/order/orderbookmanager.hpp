@@ -16,7 +16,7 @@ using book_index = uint64_t;
 class OrderBookManager {
 public:
     OrderResult addOrder(tradeorder::Order& order);
-    OrderResult modifyOrder(const info::ModifyOrder& modify_order);
+    std::pair<OrderResult, OrderResult> modifyOrder(const info::ModifyOrder& modify_order);
     OrderResult cancelOrder(const info::CancelOrder& cancel_order);
     bool createOrderBook(const uint64_t ticker);
     bool createOrderBook(const std::string& ticker);

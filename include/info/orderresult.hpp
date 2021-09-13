@@ -29,10 +29,18 @@ enum class OrderStatusPresent {
 struct OrderResult {
     using MatchResult = server::matching::MatchResult;
     OrderResult(RejectionReason reason)
-    : order_status_present(OrderStatusPresent::RejectionPresent) {
+     : match_result(std::nullopt)
+     , order_status_present(OrderStatusPresent::RejectionPresent) {
         orderstatus.rejection = reason;
     }
-    OrderResult() : order_status_present(OrderStatusPresent::NoStatusPresent) {}
+    OrderResult() 
+     : match_result(std::nullopt)
+     , order_status_present(OrderStatusPresent::NoStatusPresent)
+    {}
+    bool empty() {
+        return match_result == std::nullopt 
+            && order_status_present == OrderStatusPresent::NoStatusPresent;
+    }
     std::optional<MatchResult> match_result;
     union OrderStatus { // C++11 allows pod-ish structs in union
         info::NewOrderStatus new_order_status;
@@ -40,7 +48,7 @@ struct OrderResult {
         info::CancelOrderStatus cancel_order_status;
         RejectionReason rejection;
         OrderStatus() {} // must allocate for pod structs w/ non-trivial constructors
-    } orderstatus;
+    } orderstatus = {};
     OrderStatusPresent order_status_present;
 };
 }

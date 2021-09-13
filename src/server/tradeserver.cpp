@@ -108,19 +108,21 @@ const OrderEntryResponder* responder) {
     if (userIDTaken(order_common, job->getUserID(), responder)) {
         return;
     }
-    processOrderResult(
+    /*processOrderResult(
         ordermanager_.modifyOrder(
             ModifyOrder(
                 modify_order.quantity(),
                 modify_order.is_buy_side(),
                 modify_order.price(),
-                order_common.order_id(),
-                order_common.user_id(),
-                order_common.ticker()
+                info::OrderCommon(
+                    order_common.order_id(),
+                    order_common.user_id(),
+                    order_common.ticker()
+                )
             )
         ),
         responder
-    );
+    );*/
 }
 
 void TradeServer::processCancelOrder(RPCJob* job, const OERequestType* cancel_entry,

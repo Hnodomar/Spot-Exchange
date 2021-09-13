@@ -16,24 +16,26 @@ using Order = ::tradeorder::Order;
 using askbook = std::map<price, Level>;
 using bidbook = std::map<price, Level, std::greater<price>>;
 using limitbook = std::unordered_map<order_id, Limit>;
-using MatchResult = server::matching::MatchResult;
+using OptMatchResult = std::optional<server::matching::MatchResult>;
 using OrderResult = info::OrderResult;
-using BidMatcher = MatchResult (*)(Order&, bidbook&, limitbook&);
-using AskMatcher = MatchResult (*)(Order&, askbook&, limitbook&);
+using BidMatcher = OptMatchResult (*)(Order&, bidbook&, limitbook&);
+using AskMatcher = OptMatchResult (*)(Order&, askbook&, limitbook&);
 class OrderBook {
 public:
     OrderBook(
         BidMatcher bidmatcher = &server::matching::FIFOMatch<bidbook>, 
         AskMatcher askmatcher = &server::matching::FIFOMatch<askbook>
     ): MatchBids(bidmatcher), MatchAsks(askmatcher) {}
-    OrderResult addOrder(tradeorder::Order& order);
-    OrderResult modifyOrder(const info::ModifyOrder& modify_order);
+    OrderResult addOrder(Order& order);
+    std::pair<OrderResult, OrderResult> modifyOrder(const info::ModifyOrder& modify_order);
     OrderResult cancelOrder(const info::CancelOrder& cancel_order);
     uint64_t numOrders() const {return limitorders_.size();}
     uint64_t numLevels() const {return asks_.size() + bids_.size();}
 private:
     template<typename T>
-    Level& getSideLevel(const uint64_t price, T sidebook);
+    Level& getSideLevel(const uint64_t price, T& sidebook);
+    bool orderFilled(const OptMatchResult& match_result) const;
+    bool modifyOrderTrivial(const info::ModifyOrder& modify_order, const Order& order);
     void populateNewOrderStatus(
         const tradeorder::Order& order,
         OrderResult& order_result
@@ -50,8 +52,8 @@ private:
     askbook asks_;
     bidbook bids_;
     limitbook limitorders_;
-    MatchResult (*MatchBids)(Order& order_to_match, bidbook& bids, limitbook& limitbook);
-    MatchResult (*MatchAsks)(Order& order_to_match, askbook& asks, limitbook& limitbook);
+    OptMatchResult (*MatchBids)(Order& order_to_match, bidbook& bids, limitbook& limitbook);
+    OptMatchResult (*MatchAsks)(Order& order_to_match, askbook& asks, limitbook& limitbook);
 };
 }
 }

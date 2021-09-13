@@ -11,12 +11,12 @@ OrderResult OrderBookManager::addOrder(tradeorder::Order& order) {
     return itr->second.addOrder(order);
 }
 
-OrderResult OrderBookManager::modifyOrder(const info::ModifyOrder& modify_order) {
+std::pair<OrderResult, OrderResult> OrderBookManager::modifyOrder(const info::ModifyOrder& modify_order) {
     if (modify_order.quantity == 0)
-        return OrderResult(info::RejectionReason::modification_trivial);
+        return {OrderResult(info::RejectionReason::modification_trivial), OrderResult()};
     auto itr = orderbooks_.find(modify_order.ticker);
     if (itr == orderbooks_.end()) {
-        return OrderResult(info::RejectionReason::orderbook_not_found);
+        return {OrderResult(info::RejectionReason::orderbook_not_found), OrderResult()};
     }
     return itr->second.modifyOrder(modify_order);
 }
