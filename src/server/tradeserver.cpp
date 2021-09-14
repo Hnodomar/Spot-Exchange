@@ -26,23 +26,25 @@ void TradeServer::makeOrderEntryRPC() {
     job_handlers.createRPCJobHandler = std::bind(&TradeServer::makeOrderEntryRPC, this);
     job_handlers.queueReqHandler = &orderentry::OrderEntryService::AsyncService::RequestOrderEntry;
     job_handlers.processRequestHandler = &orderEntryProcessor;
-    new BiDirStreamRPCJob<ServiceType, OERequestType, OEResponseType>(&order_entry_service_, cq_.get(), job_handlers);
+    new OrderEntryStreamConnection(
+        &order_entry_service_, cq_.get(), job_handlers, client_streams_
+    );
 }
 
-void TradeServer::setOrderEntryContext(ServiceType* service, RPCJob* job, 
+void TradeServer::setOrderEntryContext(ServiceType* service, OrderEntryStreamConnection* connection, 
 grpc::ServerContext* serv_context, std::function<bool(OEResponseType*)> send_response) {
     OrderEntryResponder responder;
     responder.send_resp = send_response;
     responder.server_context = serv_context;
     entry_order_responders_.emplace(job, responder);
 }
-void TradeServer::orderEntryDone(ServiceType* service, RPCJob* job, bool) {
-    entry_order_responders_.erase(job);
-    client_streams_.erase(job->getUserID());
-    delete job;
+void TradeServer::orderEntryDone(ServiceType* service, OrderEntryStreamConnection* connection, bool) {
+    entry_order_responders_.erase(connection);
+    client_streams_.erase(connection->getUserID());
+    delete connection;
 }
 
-void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_entry) {
+void TradeServer::orderEntryProcessor(OrderEntryStreamConnection* connection, const OERequestType* order_entry) {
     using type = OERequestType::OrderEntryTypeCase;
     using namespace ::tradeorder;
     using namespace server::matching;
@@ -73,13 +75,13 @@ void TradeServer::orderEntryProcessor(RPCJob* job, const OERequestType* order_en
     }
 }
 
-void TradeServer::processNewOrder(RPCJob* job, const OERequestType* order_entry,
+void TradeServer::processNewOrder(OrderEntryStreamConnection* connection, const OERequestType* order_entry,
 const OrderEntryResponder* responder) {
     using namespace tradeorder;
     using namespace server::matching;
     const auto& new_order = order_entry->new_order();
     const auto& order_common = new_order.order_common();
-    if (userIDTaken(order_common, job->getUserID(), responder)) {
+    if (userIDTaken(order_common, connection->getUserID(), responder)) {
         return;
     }
     const auto userid_itr = client_streams_.find(order_common.user_id());
@@ -100,37 +102,37 @@ const OrderEntryResponder* responder) {
     processOrderResult(ordermanager_.addOrder(order), responder);
 }
 
-void TradeServer::processModifyOrder(RPCJob* job, const OERequestType* modify_entry,
+void TradeServer::processModifyOrder(OrderEntryStreamConnection* connection, const OERequestType* modify_entry,
 const OrderEntryResponder* responder) {
     using namespace info;
     auto modify_order = modify_entry->modify_order();
     auto order_common = modify_order.order_common();
-    if (userIDTaken(order_common, job->getUserID(), responder)) {
+    if (userIDTaken(order_common, connection->getUserID(), responder)) {
         return;
     }
-    /*processOrderResult(
-        ordermanager_.modifyOrder(
-            ModifyOrder(
-                modify_order.quantity(),
-                modify_order.is_buy_side(),
-                modify_order.price(),
-                info::OrderCommon(
-                    order_common.order_id(),
-                    order_common.user_id(),
-                    order_common.ticker()
-                )
+    auto modify_result = ordermanager_.modifyOrder(
+        ModifyOrder(
+            modify_order.quantity(),
+            modify_order.is_buy_side(),
+            modify_order.price(),
+            info::OrderCommon(
+                order_common.order_id(),
+                order_common.user_id(),
+                order_common.ticker()
             )
-        ),
-        responder
-    );*/
+        )
+    );
+    processOrderResult(modify_result.first, responder);
+    if (!modify_result.second.empty())
+        processOrderResult(modify_result.second, responder);
 }
 
-void TradeServer::processCancelOrder(RPCJob* job, const OERequestType* cancel_entry,
+void TradeServer::processCancelOrder(OrderEntryStreamConnection* connection, const OERequestType* cancel_entry,
 const OrderEntryResponder* responder) {
     using namespace info;
     auto cancel_order = cancel_entry->cancel_order();
     auto order_common = cancel_order.order_common();
-    if (userIDTaken(order_common, job->getUserID(), responder)) {
+    if (userIDTaken(order_common, connection->getUserID(), responder)) {
         return;
     }
     processOrderResult(
