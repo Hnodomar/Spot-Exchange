@@ -3,28 +3,27 @@
 
 using namespace server::tradeorder;
 
-OrderResult OrderBookManager::addOrder(tradeorder::Order& order) {
+AddOrderResult OrderBookManager::addOrder(tradeorder::Order& order) {
     auto itr = orderbooks_.find(order.getTicker());
     if (itr == orderbooks_.end()) {
-        return OrderResult(info::RejectionReason::orderbook_not_found);
+        return info::AddOrderResult(info::AddOrderRejectionReason::orderbook_not_found);
     }
-    return itr->second.addOrder(order);
+    return (*(itr->second.add_order[order.isBuySide()]))(order);
 }
 
-std::pair<OrderResult, OrderResult> OrderBookManager::modifyOrder(const info::ModifyOrder& modify_order) {
+ModifyOrderResult OrderBookManager::modifyOrder(const info::ModifyOrder& modify_order) {
     if (modify_order.quantity == 0)
-        return {OrderResult(info::RejectionReason::modification_trivial), OrderResult()};
+        return ModifyOrderResult(ModifyRejectionReason::modification_trivial);
     auto itr = orderbooks_.find(modify_order.ticker);
-    if (itr == orderbooks_.end()) {
-        return {OrderResult(info::RejectionReason::orderbook_not_found), OrderResult()};
-    }
+    if (itr == orderbooks_.end())
+        return ModifyOrderResult(ModifyRejectionReason::orderbook_not_found);
     return itr->second.modifyOrder(modify_order);
 }
 
-OrderResult OrderBookManager::cancelOrder(const info::CancelOrder& cancel_order) {
+CancelOrderResult OrderBookManager::cancelOrder(const info::CancelOrder& cancel_order) {
     auto itr = orderbooks_.find(cancel_order.ticker);
     if (itr == orderbooks_.end()) {
-        return OrderResult(info::RejectionReason::orderbook_not_found);
+        return CancelOrderResult(info::CancelRejectionReason::orderbook_not_found);
     }
     return itr->second.cancelOrder(cancel_order);
 }

@@ -12,13 +12,12 @@
 #include <google/protobuf/message.h>
 #include <google/protobuf/arena.h>
 
+#include "orderentrystreamconnection.hpp"
 #include "logger.hpp"
 #include "orderbookmanager.hpp"
-#include "bidirstreamrpcjob.hpp"
 #include "unaryrpcjob.hpp"
 #include "orderentry.grpc.pb.h"
 #include "jobhandlers.hpp"
-#include "rpcprocessor.hpp"
 #include "util.hpp"
 
 using ServiceType = orderentry::OrderEntryService::AsyncService;
@@ -80,10 +79,9 @@ private:
         const orderentry::CancelOrder& cancel_order,
         const OrderEntryResponder* responder
     );
-    static bool userIDTaken(
-        const orderentry::OrderCommon& common,
-        const uint64_t job_id,
-        const OrderEntryResponder* responder
+    static bool userIDUsageRejection(
+        OrderEntryStreamConnection* connection,
+        const orderentry::OrderCommon& common
     );
     static void sendWrongUserIDRejection(
         const OrderEntryResponder* responder,
@@ -97,25 +95,21 @@ private:
     static const OrderRejection getRejectionType(
         info::RejectionReason rejection
     );
-
+    static void acknowledgeEntry(
+        OrderEntryStreamConnection* connection, const OERequestType* oe
+    );
     void makeMarketDataRPC();
-    inline static OEResponseType neworder_ack_; // re-use messages to avoid memory allocation overhead
-    inline static OEResponseType modifyorder_ack_;
-    inline static OEResponseType cancelorder_ack_;
-    inline static OEResponseType orderfill_ack_;
-    inline static OEResponseType rejection_ack_;
 
     logging::Logger logger_;
     std::mutex taglist_mutex_;
-    inline static tradeorder::OrderBookManager ordermanager_;
+    tradeorder::OrderBookManager ordermanager_;
     std::unique_ptr<grpc::Server> trade_server_;
     std::unique_ptr<grpc::ServerCompletionQueue> cq_;
+    std::vector<std::thread> threadpool_;
     orderentry::OrderEntryService::AsyncService order_entry_service_;
-    std::list<RPC::CallbackTag> taglist_;
-    RPC::RPCProcessor rpc_processor_;
-    inline static std::unordered_map<RPCJob*, OrderEntryResponder> entry_order_responders_;
+    std::unordered_map<RPCJob*, OrderEntryResponder> entry_order_responders_;
     using user_id = uint64_t;
-    inline static std::unordered_map<user_id, RPCJob*> client_streams_;
+    std::unordered_map<user_id, RPCJob*> client_streams_;
 };
 }
 

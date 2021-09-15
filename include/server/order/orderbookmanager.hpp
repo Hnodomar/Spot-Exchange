@@ -12,12 +12,11 @@ namespace server {
 namespace tradeorder {
 using SubscribeResult = std::pair<bool, OrderBook&>;
 using order_id = uint64_t; using ticker = uint64_t;
-using book_index = uint64_t;
 class OrderBookManager {
 public:
-    OrderResult addOrder(tradeorder::Order& order);
-    std::pair<OrderResult, OrderResult> modifyOrder(const info::ModifyOrder& modify_order);
-    OrderResult cancelOrder(const info::CancelOrder& cancel_order);
+    AddOrderResult addOrder(tradeorder::Order& order);
+    ModifyOrderResult modifyOrder(const info::ModifyOrder& modify_order);
+    CancelOrderResult cancelOrder(const info::CancelOrder& cancel_order);
     bool createOrderBook(const uint64_t ticker);
     bool createOrderBook(const std::string& ticker);
     SubscribeResult subscribe(const uint64_t ticker);

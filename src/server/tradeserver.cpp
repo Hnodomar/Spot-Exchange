@@ -3,8 +3,7 @@
 using namespace server;
 
 TradeServer::TradeServer(char* port, const std::string& outputfile="") 
-  : logger_(outputfile)
-  , rpc_processor_(taglist_, taglist_mutex_) {
+  : logger_(outputfile) {
     initStatics();
     std::string server_address("0.0.0.0:" + std::string(port));
     grpc::ServerBuilder builder;
@@ -42,6 +41,33 @@ void TradeServer::orderEntryDone(ServiceType* service, OrderEntryStreamConnectio
     entry_order_responders_.erase(connection);
     client_streams_.erase(connection->getUserID());
     delete connection;
+}
+
+
+bool TradeServer::userIDUsageRejection(OrderEntryStreamConnection* connection, const orderentry::OrderCommon& common) {
+    if (common.user_id() != connection->getUserID()) {
+        auto rejection = rejection_ack.mutable_rejection();
+        auto rejection_common = rejection->mutable_order_common();
+        rejection_common->set_user_id(common.user_id());
+        rejection_common->set_ticker(common.ticker());
+        rejection_common->set_order_id(common.order_id());
+        rejection->set_rejection_response(orderentry::OrderEntryRejection::wrong_user_id);
+        connection->writeResponse(&rejection_ack, );
+        return false;
+    }
+    
+    return true;
+}
+
+void TradeServer::sendWrongUserIDRejection(const OrderEntryResponder* responder, const uint64_t correct_id,
+const orderentry::OrderCommon& order_common) {
+    auto rejection = rejection_ack.mutable_rejection();
+    auto common = rejection->mutable_order_common();
+    common->set_user_id(correct_id);
+    common->set_ticker(order_common.ticker());
+    common->set_order_id(order_common.order_id());
+    rejection->set_rejection_response(orderentry::OrderEntryRejection::wrong_user_id);
+    responder->send_resp(&rejection_ack);
 }
 
 void TradeServer::orderEntryProcessor(OrderEntryStreamConnection* connection, const OERequestType* order_entry) {
@@ -147,34 +173,14 @@ const OrderEntryResponder* responder) {
     );
 }
 
-bool TradeServer::userIDTaken(const orderentry::OrderCommon& common, const uint64_t job_id,
-const OrderEntryResponder* responder) {
-    if (common.user_id() != job_id) {
-        sendWrongUserIDRejection(responder, job_id, common);
-        return true;
-    }
-    return false;
-}
-
-void TradeServer::sendWrongUserIDRejection(const OrderEntryResponder* responder, const uint64_t correct_id,
-const orderentry::OrderCommon& order_common) {
-    auto rejection = rejection_ack_.mutable_rejection();
-    auto common = rejection->mutable_order_common();
-    common->set_user_id(correct_id);
-    common->set_ticker(order_common.ticker());
-    common->set_order_id(order_common.order_id());
-    rejection->set_rejection_response(orderentry::OrderEntryRejection::wrong_user_id);
-    responder->send_resp(&rejection_ack_);
-}
-
 void TradeServer::processOrderResult(info::OrderResult order_result, const OrderEntryResponder* responder) {
     auto order_status = order_result.order_status_present;
     using StatusPresent = info::OrderStatusPresent;
     switch(order_status) {
         case StatusPresent::RejectionPresent: {
-            auto rejection = rejection_ack_.mutable_rejection();
+            auto rejection = rejection_ack.mutable_rejection();
             rejection->set_rejection_response(getRejectionType(order_result.orderstatus.rejection));
-            responder->send_resp(&rejection_ack_);
+            responder->send_resp(&rejection_ack);
             return;
         }
         case StatusPresent::NewOrderPresent:
@@ -188,7 +194,7 @@ void TradeServer::processOrderResult(info::OrderResult order_result, const Order
         return;
 
     for (const auto& fill : order_result.match_result->getFills()) {
-        auto fill_ack = orderfill_ack_.mutable_fill();
+        auto fill_ack = orderfill_ack.mutable_fill();
         fill_ack->set_timestamp(fill.timestamp);
         fill_ack->set_fill_quantity(fill.fill_qty);
         fill_ack->set_complete_fill(fill.full_fill);
@@ -198,7 +204,7 @@ void TradeServer::processOrderResult(info::OrderResult order_result, const Order
             return; // error
         }
         entry_order_responders_[itr->second].send_resp(
-            &orderfill_ack_
+            &orderfill_ack
         );
     }
 }
@@ -230,7 +236,7 @@ const OrderRejection TradeServer::getRejectionType(info::RejectionReason rejecti
 
 void TradeServer::sendNewOrderAcknowledgement(const orderentry::NewOrder& new_order, 
 const orderentry::OrderCommon& new_order_common, const OrderEntryResponder* responder) {
-    auto noa_status = neworder_ack_.mutable_new_order_ack();
+    auto noa_status = neworder_ack.mutable_new_order_ack();
     noa_status->set_is_buy_side(new_order.is_buy_side());
     noa_status->set_quantity(new_order.quantity());
     noa_status->set_price(new_order.price());
@@ -239,18 +245,21 @@ const orderentry::OrderCommon& new_order_common, const OrderEntryResponder* resp
     noa_com_status->set_ticker(new_order_common.ticker());
     noa_com_status->set_user_id(new_order_common.user_id());
     noa_status->set_timestamp(util::getUnixTimestamp());
-    responder->send_resp(&neworder_ack_);
+    responder->send_resp(&neworder_ack);
 }
 
 void TradeServer::handleRemoteProcedureCalls() {
     makeOrderEntryRPC();
-    std::thread rpcprocessing(std::ref(rpc_processor_));
-    RPC::CallbackTag cb_tag;
-    for (;;) { // main grpc tag loop
-        GPR_ASSERT(cq_->Next((void**)&cb_tag.callback_fn, &cb_tag.ok));
-        taglist_mutex_.lock();
-        taglist_.push_back(cb_tag);
-        taglist_mutex_.unlock();
+    auto rpcprocessor = [this](){
+        std::function<void(bool)>* callback;
+        bool ok;
+        for (;;) {
+            GPR_ASSERT(cq_->Next((void**)&callback, &ok));
+            (*(callback))(ok);
+        }
+    };
+    for (uint i = 0; i < std::thread::hardware_concurrency(); ++i) {
+        threadpool_.emplace_back(std::thread(rpcprocessor));
     }
 }
 

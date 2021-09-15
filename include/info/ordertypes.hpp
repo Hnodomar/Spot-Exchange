@@ -10,13 +10,14 @@ struct OrderCommon {
     , user_id(user_id)
     , ticker(ticker)
     {}
+    OrderCommon(OrderCommon&) = default;
     const uint64_t order_id;
     const uint64_t user_id;
     const uint64_t ticker;
 };
 
 struct ModifyOrder : public OrderCommon {
-    ModifyOrder(uint8_t is_buy_side, uint64_t price, uint32_t quantity,  OrderCommon common)
+    ModifyOrder(uint8_t is_buy_side, uint64_t price, uint32_t quantity, OrderCommon common)
     : OrderCommon(common)
     , quantity(quantity)
     , is_buy_side(is_buy_side)
@@ -31,6 +32,10 @@ struct CancelOrder : public OrderCommon {
     CancelOrder(uint64_t order_id, uint64_t user_id, uint64_t ticker)
     : OrderCommon(order_id, user_id, ticker) 
     {}
+    CancelOrder(const CancelOrder& rhs)
+     : OrderCommon(rhs.order_id, rhs.user_id, rhs.ticker)
+    {}
+    CancelOrder(CancelOrder&&) = default;
 };  
 }
 #endif
