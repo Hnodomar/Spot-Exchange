@@ -3,6 +3,8 @@
 
 #include <cstdint>
 
+#include "orderentrystreamconnection.hpp"
+
 namespace info {
 struct OrderCommon {
     OrderCommon(uint64_t order_id, uint64_t user_id, uint64_t ticker)
@@ -17,25 +19,35 @@ struct OrderCommon {
 };
 
 struct ModifyOrder : public OrderCommon {
-    ModifyOrder(uint8_t is_buy_side, uint64_t price, uint32_t quantity, OrderCommon common)
+    ModifyOrder(uint8_t is_buy_side, OrderEntryStreamConnection* connection,
+    uint64_t price, uint32_t quantity, OrderCommon common)
     : OrderCommon(common)
+    , price(price)
+    , connection(connection)
     , quantity(quantity)
     , is_buy_side(is_buy_side)
-    , price(price)
     {}
+    const uint64_t price;
+    OrderEntryStreamConnection* connection;
     const uint32_t quantity;
     const uint8_t is_buy_side;
-    const uint64_t price;
 };
 
 struct CancelOrder : public OrderCommon {
-    CancelOrder(uint64_t order_id, uint64_t user_id, uint64_t ticker)
-    : OrderCommon(order_id, user_id, ticker) 
+    CancelOrder(uint64_t order_id, uint64_t user_id, uint64_t ticker,
+    OrderEntryStreamConnection* conn)
+    : OrderCommon(order_id, user_id, ticker)
+    , connection(conn)
+    {}
+    CancelOrder(const ModifyOrder& mod)
+    : OrderCommon(mod.order_id, mod.user_id, mod.ticker)
+    , connection(mod.connection)
     {}
     CancelOrder(const CancelOrder& rhs)
      : OrderCommon(rhs.order_id, rhs.user_id, rhs.ticker)
     {}
     CancelOrder(CancelOrder&&) = default;
+    OrderEntryStreamConnection* connection;
 };  
 }
 #endif

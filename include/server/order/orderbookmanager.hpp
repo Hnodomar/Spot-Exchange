@@ -6,7 +6,6 @@
 #include <utility>
 
 #include "orderbook.hpp"
-#include "orderresult.hpp"
 
 namespace server {
 namespace tradeorder {
@@ -14,9 +13,9 @@ using SubscribeResult = std::pair<bool, OrderBook&>;
 using order_id = uint64_t; using ticker = uint64_t;
 class OrderBookManager {
 public:
-    AddOrderResult addOrder(tradeorder::Order& order);
-    ModifyOrderResult modifyOrder(const info::ModifyOrder& modify_order);
-    CancelOrderResult cancelOrder(const info::CancelOrder& cancel_order);
+    void addOrder(::tradeorder::Order& order);
+    void modifyOrder(const info::ModifyOrder& modify_order);
+    void cancelOrder(const info::CancelOrder& cancel_order);
     bool createOrderBook(const uint64_t ticker);
     bool createOrderBook(const std::string& ticker);
     SubscribeResult subscribe(const uint64_t ticker);

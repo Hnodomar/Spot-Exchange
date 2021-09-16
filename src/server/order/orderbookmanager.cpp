@@ -3,29 +3,55 @@
 
 using namespace server::tradeorder;
 
-AddOrderResult OrderBookManager::addOrder(tradeorder::Order& order) {
+void OrderBookManager::addOrder(::tradeorder::Order& order) {
     auto itr = orderbooks_.find(order.getTicker());
     if (itr == orderbooks_.end()) {
-        return info::AddOrderResult(info::AddOrderRejectionReason::orderbook_not_found);
+        order.getConnection()->sendRejection(
+            static_cast<Rejection>(ORDERBOOK_NOT_FOUND),
+            order.getUserID(),
+            order.getOrderID(),
+            order.getTicker()
+        );
+        return;
     }
-    return (*(itr->second.add_order[order.isBuySide()]))(order);
+    (itr->second.*add_order[order.isBuySide()])(order);
 }
 
-ModifyOrderResult OrderBookManager::modifyOrder(const info::ModifyOrder& modify_order) {
-    if (modify_order.quantity == 0)
-        return ModifyOrderResult(ModifyRejectionReason::modification_trivial);
+void OrderBookManager::modifyOrder(const info::ModifyOrder& modify_order) {
+    if (modify_order.quantity == 0) {
+        modify_order.connection->sendRejection(
+            static_cast<Rejection>(MODIFICATION_TRIVIAL),
+            modify_order.user_id,
+            modify_order.order_id,
+            modify_order.ticker
+        );
+        return;
+    }
     auto itr = orderbooks_.find(modify_order.ticker);
-    if (itr == orderbooks_.end())
-        return ModifyOrderResult(ModifyRejectionReason::orderbook_not_found);
-    return itr->second.modifyOrder(modify_order);
+    if (itr == orderbooks_.end()) {
+        modify_order.connection->sendRejection(
+            static_cast<Rejection>(ORDERBOOK_NOT_FOUND),
+            modify_order.user_id,
+            modify_order.order_id,
+            modify_order.ticker
+        );
+        return;
+    }
+    itr->second.modifyOrder(modify_order);
 }
 
-CancelOrderResult OrderBookManager::cancelOrder(const info::CancelOrder& cancel_order) {
+void OrderBookManager::cancelOrder(const info::CancelOrder& cancel_order) {
     auto itr = orderbooks_.find(cancel_order.ticker);
     if (itr == orderbooks_.end()) {
-        return CancelOrderResult(info::CancelRejectionReason::orderbook_not_found);
+        cancel_order.connection->sendRejection(
+            static_cast<Rejection>(ORDERBOOK_NOT_FOUND),
+            cancel_order.user_id,
+            cancel_order.order_id,
+            cancel_order.ticker
+        );
+        return;
     }
-    return itr->second.cancelOrder(cancel_order);
+    itr->second.cancelOrder(cancel_order);
 }
 
 bool OrderBookManager::createOrderBook(const uint64_t ticker) {

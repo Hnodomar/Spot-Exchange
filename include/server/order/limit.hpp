@@ -10,6 +10,8 @@ struct Limit {
     Limit(::tradeorder::Order order):
         order(order)
     {}
+    Limit() = default;
+    ~Limit() {}
     uint64_t timestamp;
     ::tradeorder::Order order;
     Limit* next_limit = nullptr;

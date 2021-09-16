@@ -5,30 +5,30 @@
 #include <functional>
 #include <optional>
 
-#include "matchresult.hpp"
+#include "order.hpp"
 #include "level.hpp"
+#include "matchresult.hpp"
 #include "util.hpp"
+
+using order_id = uint64_t;
+using limitbook = std::unordered_map<order_id, server::tradeorder::Limit>;
 
 namespace server {
 namespace matching {
 using price = uint64_t;
-using order_id = uint64_t;
 using Level = server::tradeorder::Level;
-using Order = ::tradeorder::Order;
-using Limit = server::tradeorder::Limit;
 using askbook = std::map<price, Level>;
 using bidbook = std::map<price, Level, std::greater<price>>;
-using limitbook = std::unordered_map<order_id, Limit>;
 
 bool noMatchingLevel(bidbook&, uint64_t order_price, uint64_t bid_price);
 bool noMatchingLevel(askbook&, uint64_t order_price, uint64_t ask_price);
-void addFills(MatchResult& match_result, Order& order, Limit* book_lim, uint32_t fill_qty);
-void popLimitFromQueue(Limit*& book_lim, Level& book_lvl, limitbook& limitbook);
+void addFills(MatchResult& match_result, ::tradeorder::Order& order, server::tradeorder::Limit* book_lim, uint32_t fill_qty);
+void popLimitFromQueue(server::tradeorder::Limit*& book_lim, Level& book_lvl, limitbook& limitbook);
 
 // inline this so we dont have to capture these references every time we loop
 // a level.. hopefully
 template<typename Book, typename BookItr>
-inline bool orderFullyMatchedInLevel(Limit*& book_lim, Order& order_to_match, MatchResult& match_result, 
+inline bool orderFullyMatchedInLevel(server::tradeorder::Limit*& book_lim, ::tradeorder::Order& order_to_match, MatchResult& match_result, 
 Level& book_lvl, limitbook& limitbook, Book& book, BookItr& book_itr) {
     while (book_lim != nullptr) {
         uint32_t fill_qty = std::min(book_lim->order.getCurrQty(), order_to_match.getCurrQty());
@@ -51,7 +51,7 @@ Level& book_lvl, limitbook& limitbook, Book& book, BookItr& book_itr) {
 }
 
 template <typename T>
-std::optional<MatchResult> FIFOMatch(Order& order_to_match, T& book, limitbook& limitbook);
+MatchResult FIFOMatch(::tradeorder::Order& order_to_match, T& book, limitbook& limitbook);
 
 }
 }

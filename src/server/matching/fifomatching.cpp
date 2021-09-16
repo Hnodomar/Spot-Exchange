@@ -1,16 +1,12 @@
 #include "fifomatching.hpp"
-#include <iostream>
 
 namespace server {
 namespace matching { 
 template <typename T>
-std::optional<MatchResult> FIFOMatch(Order& order_to_match, T& book, limitbook& limitbook) {
-    if (book.empty())  {
-        return std::nullopt;
-    }
+MatchResult FIFOMatch(::tradeorder::Order& order_to_match, T& book, limitbook& limitbook) {
     auto book_itr = book.begin();
     Level& book_lvl = book_itr->second;
-    Limit* book_lim = book_lvl.head;
+    server::tradeorder::Limit* book_lim = book_lvl.head;
     uint64_t order_price = order_to_match.getPrice();
     MatchResult match_result;
     while (book_itr != book.end()) {
@@ -30,8 +26,8 @@ std::optional<MatchResult> FIFOMatch(Order& order_to_match, T& book, limitbook& 
     return match_result;
 }
 
-inline void popLimitFromQueue(Limit*& book_lim, Level& book_lvl, limitbook& limitbook) {
-    Limit* next_limit = book_lim->next_limit;
+inline void popLimitFromQueue(server::tradeorder::Limit*& book_lim, Level& book_lvl, limitbook& limitbook) {
+    server::tradeorder::Limit* next_limit = book_lim->next_limit;
     if (next_limit != nullptr) {
         next_limit->prev_limit = nullptr;
     }
@@ -41,7 +37,7 @@ inline void popLimitFromQueue(Limit*& book_lim, Level& book_lvl, limitbook& limi
     limitbook.erase(book_lim_id);
 }
 
-inline void addFills(MatchResult& match_result, Order& order, Limit* book_lim, uint32_t fill_qty) {
+inline void addFills(MatchResult& match_result, ::tradeorder::Order& order, server::tradeorder::Limit* book_lim, uint32_t fill_qty) {
     int64_t filltime = util::getUnixTimestamp();
     bool order_filled = order.getCurrQty() == 0;
     bool book_lim_filled = book_lim->order.getCurrQty() == 0;
@@ -51,7 +47,8 @@ inline void addFills(MatchResult& match_result, Order& order, Limit* book_lim, u
         book_lim->order.getPrice(),
         fill_qty,
         book_lim_filled,
-        book_lim->order.getUserID()
+        book_lim->order.getUserID(),
+        order.getConnection()
     );
     match_result.addFill(
         filltime,
@@ -60,7 +57,8 @@ inline void addFills(MatchResult& match_result, Order& order, Limit* book_lim, u
         book_lim->order.getPrice(),
         fill_qty,
         order_filled,
-        book_lim->order.getUserID()
+        book_lim->order.getUserID(),
+        order.getConnection()
     );
 }
 
@@ -72,7 +70,7 @@ bool noMatchingLevel(askbook&, uint64_t order_price, uint64_t ask_price) {
     return order_price < ask_price;
 }
 
-template std::optional<MatchResult> FIFOMatch<bidbook>(Order&, bidbook&, limitbook&);
-template std::optional<MatchResult> FIFOMatch<askbook>(Order&, askbook&, limitbook&);
+template MatchResult FIFOMatch<bidbook>(::tradeorder::Order&, bidbook&, limitbook&);
+template MatchResult FIFOMatch<askbook>(::tradeorder::Order&, askbook&, limitbook&);
 }
 }

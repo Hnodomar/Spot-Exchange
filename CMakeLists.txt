@@ -11,6 +11,7 @@ file(GLOB server_src
     ${PROJECT_SOURCE_DIR}/src/server/*.cpp
     ${PROJECT_SOURCE_DIR}/src/server/matching/*.cpp
     ${PROJECT_SOURCE_DIR}/src/server/order/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/server/rpc/*.cpp
 )
 
 file(GLOB server_inc
