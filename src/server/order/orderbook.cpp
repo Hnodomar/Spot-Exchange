@@ -1,9 +1,21 @@
 #include "orderbook.hpp"
 #include <iostream>
+#include <utility>
 
 using namespace server::tradeorder;
 
+#ifndef TEST_BUILD
+thread_local OEResponseType orderfill_ack;
+#endif
 
+OrderBook::OrderBook(BidMatcher bidmatcher, AskMatcher askmatcher)
+    : MatchBids(bidmatcher), MatchAsks(askmatcher) 
+{}
+
+const std::array<OrderBook::AddOrderFn, 2> OrderBook::add_order{
+    &OrderBook::addOrder<Side::Sell>,
+    &OrderBook::addOrder<Side::Buy>
+};
 
 // these will be inlined (hopefully) and are just for readability
 inline void OrderBook::placeLimitInBookLevel(Level* level, ::tradeorder::Order& order) {
@@ -48,7 +60,8 @@ inline bool OrderBook::possibleMatches(const bidbook& book, const ::tradeorder::
     return book.begin()->first >= order.getPrice();
 }
 
-void OrderBook::processMatchResults(MatchResult& match_result, const ::tradeorder::Order& order) const {
+void OrderBook::communicateMatchResults(MatchResult& match_result, const ::tradeorder::Order& order) const {
+    #ifndef TEST_BUILD
     for (const auto& fill : match_result.getFills()) {
         auto fill_ack = orderfill_ack.mutable_fill();
         fill_ack->set_timestamp(fill.timestamp);
@@ -62,46 +75,55 @@ void OrderBook::processMatchResults(MatchResult& match_result, const ::tradeorde
             fill.connection
         )->queueWrite(&orderfill_ack);
     }
+    #endif
 }
 
 void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
     using namespace info;
     auto itr = limitorders_.find(modify_order.order_id);
     if (itr == limitorders_.end()) {
+        #ifndef TEST_BUILD
         modify_order.connection->sendRejection(
             static_cast<Rejection>(ORDER_NOT_FOUND),
             modify_order.user_id,
             modify_order.order_id,
             modify_order.ticker
         );
+        #endif
         return;
     }
     auto& limit = itr->second;
     if (limit.order.isBuySide() != modify_order.is_buy_side) {
+        #ifndef TEST_BUILD
         modify_order.connection->sendRejection(
             static_cast<Rejection>(MODIFY_WRONG_SIDE),
             modify_order.user_id,
             modify_order.order_id,
             modify_order.ticker
         );
+        #endif
         return;
     }
     if (itr->second.order.getUserID() != modify_order.user_id) {
+        #ifndef TEST_BUILD
         modify_order.connection->sendRejection(
             static_cast<Rejection>(WRONG_USER_ID),
             modify_order.user_id,
             modify_order.order_id,
             modify_order.ticker
         );
+        #endif
         return;
     }
     if (modifyOrderTrivial(modify_order, limit.order)) {
+        #ifndef TEST_BUILD
         modify_order.connection->sendRejection(
             static_cast<Rejection>(MODIFICATION_TRIVIAL),
             modify_order.user_id,
             modify_order.order_id,
             modify_order.ticker
         );
+        #endif
         return;
     }
     if (modify_order.price == limit.order.getPrice()) {
@@ -114,28 +136,32 @@ void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
     else {
         cancelOrder(modify_order);
         ::tradeorder::Order new_order(modify_order);
-        (this->*add_order[modify_order.is_buy_side])(new_order);
+        (this->*OrderBook::add_order[modify_order.is_buy_side])(new_order);
     }
 }
 
 void OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
     auto itr = limitorders_.find(cancel_order.order_id);
     if (itr == limitorders_.end()) {
+        #ifndef TEST_BUILD
         cancel_order.connection->sendRejection(
             static_cast<Rejection>(ORDER_NOT_FOUND),
             cancel_order.user_id,
             cancel_order.order_id,
             cancel_order.ticker
         );
+        #endif
         return;
     }
     if (itr->second.order.getUserID() != cancel_order.user_id) {
+        #ifndef TEST_BUILD
         cancel_order.connection->sendRejection(
             static_cast<Rejection>(WRONG_USER_ID),
             cancel_order.user_id,
             cancel_order.order_id,
             cancel_order.ticker
         );
+        #endif
         return;
     }
     Limit& limit = itr->second;
@@ -166,3 +192,11 @@ bool OrderBook::modifyOrderTrivial(const info::ModifyOrder& modify_order, const 
     return modify_order.price == order.getPrice() && modify_order.quantity == order.getCurrQty();
 }
 
+GetOrderResult OrderBook::getOrder(uint64_t order_id) {
+    auto itr = limitorders_.find(order_id);
+    if (itr == limitorders_.end()) {
+        ::tradeorder::Order dangler;
+        return {false, dangler};
+    }
+    return {true, itr->second.order};
+}

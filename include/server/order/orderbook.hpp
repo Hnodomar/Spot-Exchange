@@ -5,12 +5,13 @@
 #include <map>
 #include <array>
 #include <utility>
-
+#ifndef TEST_BUILD
 #include "orderentrystreamconnection.hpp"
-#include "fifomatching.hpp"
-#include "ordertypes.hpp"
-#include "level.hpp"
+#endif
 #include "exception.hpp"
+#include "fifomatching.hpp"
+#include "order.hpp"
+#include "limit.hpp"
 
 static constexpr uint8_t UNKNOWN = 0;
 static constexpr uint8_t ORDER_NOT_FOUND = 1;
@@ -21,8 +22,9 @@ static constexpr uint8_t MODIFY_WRONG_SIDE = 5;
 static constexpr uint8_t MODIFICATION_TRIVIAL = 6;
 static constexpr uint8_t WRONG_USER_ID = 7;
 
-using OEResponseType = orderentry::OrderEntryResponse;
-thread_local OEResponseType orderfill_ack;
+#ifndef TEST_BUILD
+extern thread_local orderentry::OrderEntryResponse orderfill_ack;
+#endif
 
 namespace server {
 namespace tradeorder {
@@ -32,34 +34,33 @@ using order_id = uint64_t;
 using askbook = std::map<price, Level>;
 using bidbook = std::map<price, Level, std::greater<price>>;
 using limitbook = std::unordered_map<order_id, server::tradeorder::Limit>;
-using Rejection = orderentry::OrderEntryRejection::RejectionReason;
 using MatchResult = server::matching::MatchResult;
 using BidMatcher = MatchResult (*)(::tradeorder::Order&, bidbook&, limitbook&);
-using AskMatcher = MatchResult (*)(::tradeorder::Order&, askbook&, limitbook&);    
-using Rejection = orderentry::OrderEntryRejection::RejectionReason;
+using AskMatcher = MatchResult (*)(::tradeorder::Order&, askbook&, limitbook&);  
+using GetOrderResult = std::pair<bool, ::tradeorder::Order&>;
+#ifndef TEST_BUILD
+using Rejection = orderentry::OrderEntryRejection::RejectionReason; 
+#endif
 enum class Side {Sell, Buy};
+enum class FullyFilled {True, False};
 
 class OrderBook {
 public:
     using AddOrderFn = void (server::tradeorder::OrderBook::*)(::tradeorder::Order&);
-    OrderBook(
-      BidMatcher bidmatcher = &server::matching::FIFOMatch<bidbook>, 
-      AskMatcher askmatcher = &server::matching::FIFOMatch<askbook>
-    )
-     : MatchBids(bidmatcher)
-     , MatchAsks(askmatcher)
-    {}
+    OrderBook(BidMatcher bidmatcher = &server::matching::FIFOMatch<bidbook>, 
+      AskMatcher askmatcher = &server::matching::FIFOMatch<askbook>);
     template<Side T> void addOrder(::tradeorder::Order& order);
     static const std::array<AddOrderFn, 2> add_order;
     void modifyOrder(const info::ModifyOrder& modify_order);
     void cancelOrder(const info::CancelOrder& cancel_order);
+    GetOrderResult getOrder(uint64_t order_id);
     uint64_t numOrders() const {return limitorders_.size();}
     uint64_t numLevels() const {return asks_.size() + bids_.size();}
 private:
     template<typename T> Level& getSideLevel(const uint64_t price, T& sidebook);
     void placeOrderInBidBook(::tradeorder::Order& order);
     void placeOrderInAskBook(::tradeorder::Order& order);
-    void processMatchResults(MatchResult& match_result, const ::tradeorder::Order& order) const;
+    void communicateMatchResults(MatchResult& match_result, const ::tradeorder::Order& order) const;
     bool possibleMatches(const askbook& book, const ::tradeorder::Order& order) const;
     bool possibleMatches(const bidbook& book, const ::tradeorder::Order& order) const;
     bool modifyOrderTrivial(const info::ModifyOrder& modify_order, const ::tradeorder::Order& order);
@@ -67,7 +68,7 @@ private:
     uint64_t ticker_;
     askbook asks_;
     bidbook bids_;
-    std::unordered_map<uint64_t, Limit> limitorders_;
+    std::unordered_map<order_id, Limit> limitorders_;
     MatchResult (*MatchBids)(::tradeorder::Order& order_to_match, bidbook& bids, limitbook& limitbook);
     MatchResult (*MatchAsks)(::tradeorder::Order& order_to_match, askbook& asks, limitbook& limitbook);
 };
@@ -88,17 +89,22 @@ inline Level& OrderBook::getSideLevel(const uint64_t price, Side& sidebook) {
 template<>
 inline void OrderBook::addOrder<Side::Buy>(::tradeorder::Order& order) {
     if (limitorders_.find(order.getOrderID()) != limitorders_.end()) {
-        order.getConnection()->sendRejection(
+        #ifndef TEST_BUILD
+        order.connection_->sendRejection(
             static_cast<Rejection>(ORDER_ID_ALREADY_PRESENT),
             order.getUserID(),
             order.getOrderID(),
             order.getTicker()
         );
+        #endif
+        return;
     }
     if (possibleMatches(asks_, order)) {
         auto match_result = MatchAsks(order, asks_, limitorders_);
-        placeOrderInBidBook(order); // want to update book before anyone is informed of result
-        processMatchResults(match_result, order);
+        if (order.getCurrQty() != 0) {
+            placeOrderInBidBook(order); // want to update book before anyone is informed of result
+            communicateMatchResults(match_result, order);
+        }
         return;
     }
     placeOrderInBidBook(order);
@@ -107,26 +113,26 @@ inline void OrderBook::addOrder<Side::Buy>(::tradeorder::Order& order) {
 template<>
 inline void OrderBook::addOrder<Side::Sell>(::tradeorder::Order& order) {
     if (limitorders_.find(order.getOrderID()) != limitorders_.end()) {
-        order.getConnection()->sendRejection(
+        #ifndef TEST_BUILD
+        order.connection_->sendRejection(
             static_cast<Rejection>(ORDER_ID_ALREADY_PRESENT),
             order.getUserID(),
             order.getOrderID(),
             order.getTicker()
         );
+        #endif
+        return;
     }
     if (possibleMatches(bids_, order)) {
         auto match_result = MatchBids(order, bids_, limitorders_);
-        placeOrderInAskBook(order); // want to update book before anyone is informed of result
-        processMatchResults(match_result, order);
+        if (order.getCurrQty() != 0) {
+            placeOrderInAskBook(order); // want to update book before anyone is informed of result
+            communicateMatchResults(match_result, order);
+        }
         return;
     }
     placeOrderInAskBook(order);
 }
-
-static const std::array<OrderBook::AddOrderFn, 2> add_order{
-    &OrderBook::addOrder<Side::Sell>,
-    &OrderBook::addOrder<Side::Buy>
-};
 
 }
 }

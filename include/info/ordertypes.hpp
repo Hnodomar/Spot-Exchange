@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-#include "orderentrystreamconnection.hpp"
+class OrderEntryStreamConnection;
 
 namespace info {
 struct OrderCommon {

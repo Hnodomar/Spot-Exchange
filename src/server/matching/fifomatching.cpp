@@ -48,7 +48,7 @@ inline void addFills(MatchResult& match_result, ::tradeorder::Order& order, serv
         fill_qty,
         book_lim_filled,
         book_lim->order.getUserID(),
-        order.getConnection()
+        order.connection_
     );
     match_result.addFill(
         filltime,
@@ -58,7 +58,7 @@ inline void addFills(MatchResult& match_result, ::tradeorder::Order& order, serv
         fill_qty,
         order_filled,
         book_lim->order.getUserID(),
-        order.getConnection()
+        order.connection_
     );
 }
 

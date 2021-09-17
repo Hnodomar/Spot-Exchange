@@ -4,34 +4,18 @@
 #include "orderbookmanager.hpp"
 
 using namespace server::tradeorder;
+using namespace ::tradeorder;
 
-void testManyMatchedOrdersResult(OrderResult& res, const uint expected_fills) {
-    if (res.match_result != std::nullopt) {
-        if (res.match_result->orderCompletelyFilled()) {
-            REQUIRE(res.order_status_present == info::OrderStatusPresent::NoStatusPresent);
-            REQUIRE(res.match_result->numFills() == expected_fills);
-        }
-        else 
-            REQUIRE(res.order_status_present == info::OrderStatusPresent::NewOrderPresent);
-    }
-    else 
-        REQUIRE(res.order_status_present == info::OrderStatusPresent::NewOrderPresent);
-}
-
-void testAddOrderStatus(const info::NewOrderStatus& new_order_stat, const Order& order) {
-    REQUIRE(new_order_stat.is_buy_side == order.isBuySide());
-    REQUIRE(new_order_stat.order_id == order.getOrderID());
-    REQUIRE(new_order_stat.price == order.getPrice());
-    REQUIRE(new_order_stat.quantity == order.getCurrQty());
-    REQUIRE(new_order_stat.ticker == order.getTicker());
-    REQUIRE(new_order_stat.user_id == order.getUserID());
-}
+class OrderEntryStreamConnection {}; // test class
+using Conn = OrderEntryStreamConnection;
 
 TEST_CASE("OrderBook Operations") {
-    uint8_t tickerarr[8] = {'T', 'e', 's', 't', 0, 0, 0, 0};
-    uint64_t ticker = *reinterpret_cast<uint64_t*>(tickerarr);
     OrderBookManager test_manager;
+    OrderEntryStreamConnection connobj;
+    OrderEntryStreamConnection* conn = &connobj;
     SECTION("Add Order") {
+        uint8_t tickerarr[8] = {'T', 'e', 's', 't', 0, 0, 0, 0};
+        uint64_t ticker = *reinterpret_cast<uint64_t*>(tickerarr);
         // create orderbook one
         REQUIRE(test_manager.createOrderBook("Test") == true); // test str to uint64_t conversion
         auto sub_result = test_manager.subscribe(ticker);
@@ -45,30 +29,33 @@ TEST_CASE("OrderBook Operations") {
         OrderBook& test_book_two = sub_result_two.second;
 
         // add order one to orderbook one
-        Order test_order_one(1, 100, 2000, info::OrderCommon(10, 1, ticker));
-        OrderResult first_add_result = test_manager.addOrder(test_order_one);
-        REQUIRE(first_add_result.match_result == std::nullopt);
-        REQUIRE(first_add_result.order_status_present == info::OrderStatusPresent::NewOrderPresent);
-        testAddOrderStatus(first_add_result.orderstatus.new_order_status, test_order_one);
+        tradeorder::Order test_order_one(1, conn, 100, 2000, info::OrderCommon(10, 1, ticker));
+        test_manager.addOrder(test_order_one);
+        REQUIRE(test_book.numLevels() == 1);
+        REQUIRE(test_book.numOrders() == 1);
+        
 
         // add order two to orderbook one
-        Order test_order_two(0, 100, 4000, info::OrderCommon(2, 2, ticker));
-        OrderResult second_add_result = test_manager.addOrder(test_order_two);
-        REQUIRE(second_add_result.match_result != std::nullopt);
-        REQUIRE(second_add_result.order_status_present == info::OrderStatusPresent::NewOrderPresent);
-        REQUIRE(second_add_result.orderstatus.new_order_status.quantity == 2000);
+        Order test_order_two(0, conn, 100, 4000, info::OrderCommon(2, 2, ticker));
+        test_manager.addOrder(test_order_two);
+        REQUIRE(test_book.numLevels() == 1);
+        REQUIRE(test_book.numOrders() == 1);
+        REQUIRE(test_order_two.getCurrQty() == 2000);
         
         // add order three to orderbook one
-        Order test_order_three(1, 150, 100, info::OrderCommon(100, 200, ticker));
-        OrderResult third_add_result = test_manager.addOrder(test_order_three);
-        REQUIRE(third_add_result.match_result != std::nullopt);
-        REQUIRE(third_add_result.order_status_present == info::OrderStatusPresent::NoStatusPresent);
+        Order test_order_three(1, conn, 150, 100, info::OrderCommon(100, 200, ticker));
+        test_manager.addOrder(test_order_three);
+        auto getorder_res = test_book.getOrder(2);
+        REQUIRE(getorder_res.first);
+        auto test_order_two_currently = getorder_res.second;
+        REQUIRE(test_order_two_currently.getCurrQty() == 1900);
+        REQUIRE(test_book.numLevels() == 1);
+        REQUIRE(test_book.numOrders() == 1);
+        REQUIRE(test_order_three.getCurrQty() == 0);
 
         // add order four to orderbook two
-        Order test_order_four (1, 500, 500, info::OrderCommon(12, 10, util::convertStrToEightBytes("TestTwo")));
-        OrderResult fourth_add_result = test_manager.addOrder(test_order_four);
-        REQUIRE(fourth_add_result.match_result == std::nullopt);
-        REQUIRE(fourth_add_result.order_status_present == info::OrderStatusPresent::NewOrderPresent);
+        Order test_order_four (1, conn, 500, 500, info::OrderCommon(12, 10, util::convertStrToEightBytes("TestTwo")));
+        test_manager.addOrder(test_order_four);
 
         // check order numbers and level numbers
         REQUIRE(test_book.numLevels() == 1);
@@ -77,17 +64,18 @@ TEST_CASE("OrderBook Operations") {
         REQUIRE(test_book_two.numOrders() == 1);
     }
     SECTION("Add Many Orders") {
-        REQUIRE(test_manager.createOrderBook("Test") == true);
-        auto sub_result = test_manager.subscribe(ticker);
+        REQUIRE(test_manager.createOrderBook("AddManyOrders") == true);
+        uint64_t ticker = util::convertStrToEightBytes("AddManyOrders");
+        auto sub_result = test_manager.subscribe("AddManyOrders");
         REQUIRE(sub_result.first == true);
         OrderBook& orderbook = sub_result.second;
         for (int i = 0; i < 200; ++i) {
             if (i % 2 == 0) {
-                Order testorder(1, 100 + i, 100, info::OrderCommon(i, i, ticker));
+                Order testorder(1, conn, 100 + i, 100, info::OrderCommon(i, i, ticker));
                 test_manager.addOrder(testorder);
             }
             else {
-                Order testorder(0, 300 + i, 100, info::OrderCommon(i, i, ticker));
+                Order testorder(0, conn, 300 + i, 100, info::OrderCommon(i, i, ticker));
                 test_manager.addOrder(testorder);
             }
         }
@@ -95,149 +83,179 @@ TEST_CASE("OrderBook Operations") {
         REQUIRE(orderbook.numLevels() == 200);
     }
     SECTION("Add Many Matching Orders") {
-        REQUIRE(test_manager.createOrderBook("Test") == true);
+        uint64_t ticker = util::convertStrToEightBytes("ManyMatchingOrders");
+        REQUIRE(test_manager.createOrderBook(ticker) == true);
         auto sub_result = test_manager.subscribe(ticker);
         REQUIRE(sub_result.first == true);
         OrderBook& orderbook = sub_result.second;
         for (int i = 0; i < 200; ++i) {
             if (i % 2 == 0) {
-                Order testorder(1, 100 + i, 10000, info::OrderCommon(i, i, ticker));
-                auto res = test_manager.addOrder(testorder);
-                testManyMatchedOrdersResult(res, 10);
+                Order testorder(1, conn, 100 + i, 10000, info::OrderCommon(i, i, ticker));
+                test_manager.addOrder(testorder);
+                REQUIRE((testorder.getCurrQty() == 10000 || testorder.getCurrQty() == 9000));
             }
             else {
-                Order testorder(0, 100 + i, 1000, info::OrderCommon(i, i, ticker));
-                auto res = test_manager.addOrder(testorder);
-                testManyMatchedOrdersResult(res, 2);
+                Order testorder(0, conn, 100 + i, 1000, info::OrderCommon(i, i, ticker));
+                test_manager.addOrder(testorder);
+                REQUIRE(testorder.getCurrQty() == 1000);
             }
         }
         REQUIRE(orderbook.numOrders() == 101);
         REQUIRE(orderbook.numLevels() == 101);
     }
     SECTION("Add Order Non-existent Orderbook") {
-        Order test_order(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        OrderResult order_result = test_manager.addOrder(test_order);
-        REQUIRE(order_result.order_status_present == info::OrderStatusPresent::RejectionPresent);
-        REQUIRE(order_result.orderstatus.rejection == info::RejectionReason::orderbook_not_found);
+        uint64_t ticker = util::convertStrToEightBytes("AddNonExistent");
+        REQUIRE(test_manager.createOrderBook(ticker) == true);
+        auto sub_result = test_manager.subscribe(ticker);
+        REQUIRE(sub_result.first == true);
+        OrderBook& orderbook = sub_result.second;
+        Order test_order(1, conn, 100, 100, info::OrderCommon(1, 1, ticker));
+        Order match_order(0, conn, 100, 100, info::OrderCommon(2, 2, 22));
+        test_manager.addOrder(test_order);
+        test_manager.addOrder(match_order);
+        REQUIRE(match_order.getCurrQty() == 100);
+        REQUIRE(orderbook.numLevels() == 1);
+        REQUIRE(orderbook.numOrders() == 1);
     }
     SECTION("Add Order ID Already Present") {
-        REQUIRE(test_manager.createOrderBook("Test") == true); 
-        Order original_order(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        Order duplicate_order(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        REQUIRE(test_manager.addOrder(
-            original_order).order_status_present == info::OrderStatusPresent::NewOrderPresent
-        );
-        OrderResult result = test_manager.addOrder(duplicate_order);
-        REQUIRE(result.order_status_present == info::OrderStatusPresent::RejectionPresent);
-        REQUIRE(result.orderstatus.rejection == info::RejectionReason::order_id_already_present);
+        uint64_t ticker = util::convertStrToEightBytes("AddPresent");
+        REQUIRE(test_manager.createOrderBook(ticker) == true);
+        auto sub_result = test_manager.subscribe(ticker);
+        REQUIRE(sub_result.first == true);
+        OrderBook& orderbook = sub_result.second;
+        Order test_order(1, conn, 100, 100, info::OrderCommon(1, 1, ticker));
+        Order match_order(0, conn, 100, 100, info::OrderCommon(1, 1, ticker));
+        test_manager.addOrder(test_order);
+        test_manager.addOrder(match_order);
+        REQUIRE(match_order.getCurrQty() == 100);
+        REQUIRE(orderbook.numLevels() == 1);
+        REQUIRE(orderbook.numOrders() == 1);    
     }
     SECTION("Modify Order Price no Fills") {
+        uint64_t ticker = util::convertStrToEightBytes("ModNoFills");
         test_manager.createOrderBook(ticker);
-        info::ModifyOrder morder(1, 350, 100, info::OrderCommon(1, 1, ticker));
-        Order order_one(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        Order order_two(0, 500, 100, info::OrderCommon(2, 2, ticker));
-        test_manager.addOrder(order_one);
-        test_manager.addOrder(order_two);
-        auto res = test_manager.modifyOrder(morder);
         auto sub_res = test_manager.subscribe(ticker);
         REQUIRE(sub_res.first);
         auto& orderbook = sub_res.second;
+        info::ModifyOrder morder(1, conn, 350, 100, info::OrderCommon(1, 1, ticker));
+        Order order_one(1, conn, 100, 100, info::OrderCommon(1, 1, ticker));
+        Order order_two(0, conn, 500, 100, info::OrderCommon(2, 2, ticker));
+        test_manager.addOrder(order_one);
+        test_manager.addOrder(order_two);
         REQUIRE(orderbook.numLevels() == 2);
         REQUIRE(orderbook.numOrders() == 2);
-        REQUIRE(!res.second.empty());
-        REQUIRE(res.second.order_status_present == info::OrderStatusPresent::CancelOrderPresent);
-        REQUIRE(res.second.match_result == std::nullopt);
-        REQUIRE(res.first.order_status_present == info::OrderStatusPresent::NewOrderPresent);
-        REQUIRE(res.first.orderstatus.new_order_status.price == 350);
-        REQUIRE(res.first.orderstatus.new_order_status.quantity == 100);
-        REQUIRE(res.first.match_result->numFills() == 0);
+        test_manager.modifyOrder(morder);
+        REQUIRE(orderbook.numLevels() == 2);
+        REQUIRE(orderbook.numOrders() == 2);
+        REQUIRE(morder.quantity == 100);
     }
     SECTION("Modify Order Price with Fills") {
+        uint64_t ticker = util::convertStrToEightBytes("ModFills");
         test_manager.createOrderBook(ticker);
-        info::ModifyOrder morder(1, 350, 100, info::OrderCommon(1, 1, ticker));
-        Order order_one(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        Order order_two(0, 350, 150, info::OrderCommon(2, 2, ticker));
+        auto sub_res = test_manager.subscribe(ticker);
+        REQUIRE(sub_res.first);
+        auto& orderbook = sub_res.second;
+        info::ModifyOrder morder(1, conn, 350, 100, info::OrderCommon(1, 1, ticker));
+        Order order_one(1, conn, 100, 100, info::OrderCommon(1, 1, ticker));
+        Order order_two(0, conn, 350, 150, info::OrderCommon(2, 2, ticker));
         test_manager.addOrder(order_one);
         test_manager.addOrder(order_two);
-        auto res = test_manager.modifyOrder(morder);
-        auto sub_res = test_manager.subscribe(ticker);
-        REQUIRE(sub_res.first);
-        auto& orderbook = sub_res.second;
+        REQUIRE(orderbook.numOrders() == 2);
+        REQUIRE(orderbook.numLevels() == 2);
+        test_manager.modifyOrder(morder);
         REQUIRE(orderbook.numLevels() == 1);
         REQUIRE(orderbook.numOrders() == 1);
-        REQUIRE(!res.second.empty());
-        REQUIRE(res.second.order_status_present == info::OrderStatusPresent::CancelOrderPresent);
-        REQUIRE(res.second.match_result == std::nullopt);
-        REQUIRE(res.first.order_status_present == info::OrderStatusPresent::NoStatusPresent);
-        REQUIRE(res.first.match_result->numFills() == 2);
     }
     SECTION("Modify Order Quantity") {
+        uint64_t ticker = util::convertStrToEightBytes("modQty");
         test_manager.createOrderBook(ticker);
-        info::ModifyOrder morder(1, 100, 200, info::OrderCommon(1, 1, ticker));
-        Order test_order(1, 100, 100, info::OrderCommon(1, 1, ticker));
+        auto sub_res = test_manager.subscribe(ticker);
+        REQUIRE(sub_res.first);
+        auto& orderbook = sub_res.second;
+        Order test_order(1, conn, 2000, 100, info::OrderCommon(1, 1, ticker));
         test_manager.addOrder(test_order);
-        auto res = test_manager.modifyOrder(morder);
-        REQUIRE(res.second.empty());
-        REQUIRE(res.first.order_status_present == info::OrderStatusPresent::ModifyOrderPresent);
-        REQUIRE(res.first.orderstatus.modify_order_status.quantity == 200);
-        REQUIRE(res.first.orderstatus.modify_order_status.price == 100);
+        auto getorig_res = orderbook.getOrder(1);
+        REQUIRE(getorig_res.first);
+        auto orig_order = getorig_res.second;
+        REQUIRE(orig_order.getCurrQty() == 100);
+        REQUIRE(orig_order.getPrice() == 2000);
+        info::ModifyOrder morder(1, conn, 100, 200, info::OrderCommon(1, 1, ticker));
+        test_manager.modifyOrder(morder);
+        auto getmod_res = orderbook.getOrder(1);
+        REQUIRE(getmod_res.first);
+        auto mod_order = getmod_res.second;
+        REQUIRE(mod_order.getPrice() == 100);
+        REQUIRE(mod_order.getCurrQty() == 200);
+        REQUIRE(orderbook.numLevels() == 1);
+        REQUIRE(orderbook.numOrders() == 1);
     }
     SECTION("Modify Order Non-Existent Order") {
+        uint64_t ticker = util::convertStrToEightBytes("ModNonExistent");
         test_manager.createOrderBook(ticker);
-        info::ModifyOrder morder(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        auto res = test_manager.modifyOrder(morder);
-        REQUIRE(res.second.empty());
-        REQUIRE(res.first.order_status_present == info::OrderStatusPresent::RejectionPresent);
-        REQUIRE(res.first.orderstatus.rejection == info::RejectionReason::order_not_found);
+        auto sub_res = test_manager.subscribe(ticker);
+        REQUIRE(sub_res.first);
+        auto& orderbook = sub_res.second;
+        info::ModifyOrder morder(1, conn, 100, 100, info::OrderCommon(1, 1, ticker));
+        test_manager.modifyOrder(morder);
+        REQUIRE(orderbook.numLevels() == 0);
+        REQUIRE(orderbook.numOrders() == 0);
     }
     SECTION("Modify Wrong Side") {
+        uint64_t ticker = util::convertStrToEightBytes("ModWrongSide");
         test_manager.createOrderBook(ticker);
-        info::ModifyOrder morder(0, 100, 100, info::OrderCommon(1, 1, ticker));
-        Order test_order(1, 100, 100, info::OrderCommon(1, 1, ticker));
+        info::ModifyOrder morder(0, conn, 100, 100, info::OrderCommon(1, 1, ticker));
+        Order test_order(1, conn, 200, 200, info::OrderCommon(1, 1, ticker));
+        auto sub_res = test_manager.subscribe(ticker);
+        REQUIRE(sub_res.first);
+        auto& orderbook = sub_res.second;
         test_manager.addOrder(test_order);
-        auto res = test_manager.modifyOrder(morder);
-        REQUIRE(res.second.empty());
-        REQUIRE(res.first.order_status_present == info::OrderStatusPresent::RejectionPresent);
-        REQUIRE(res.first.orderstatus.rejection == info::RejectionReason::modify_wrong_side);
+        test_manager.modifyOrder(morder);
+        auto getorder_res = orderbook.getOrder(1);
+        REQUIRE(getorder_res.first);
+        auto orig_order = getorder_res.second;
+        REQUIRE(orig_order.getCurrQty() == 200);
+        REQUIRE(orig_order.getPrice() == 200);
+        REQUIRE(orderbook.numOrders() == 1);
+        REQUIRE(orderbook.numLevels() == 1);
     }
     SECTION("Modify Other User's Order") {
+        uint64_t ticker = util::convertStrToEightBytes("ModOther");
         test_manager.createOrderBook(ticker);
-        info::ModifyOrder morder(1, 200, 100, info::OrderCommon(1, 2, ticker));
-        Order test_order(1, 100, 100, info::OrderCommon(1, 1, ticker));
+        auto sub_res = test_manager.subscribe(ticker);
+        REQUIRE(sub_res.first);
+        auto& orderbook = sub_res.second;
+        info::ModifyOrder morder(1, conn, 200, 150, info::OrderCommon(1, 2, ticker));
+        Order test_order(1, conn, 100, 100, info::OrderCommon(1, 1, ticker));
         test_manager.addOrder(test_order);
-        auto res = test_manager.modifyOrder(morder);
-        REQUIRE(res.second.empty());
-        REQUIRE(res.first.order_status_present == info::OrderStatusPresent::RejectionPresent);
-        REQUIRE(res.first.orderstatus.rejection == info::RejectionReason::wrong_user_id);
-    }
-    SECTION("Modification Trivial") {
-        test_manager.createOrderBook(ticker);
-        info::ModifyOrder morder(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        Order test_order(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        test_manager.addOrder(test_order);
-        auto res = test_manager.modifyOrder(morder);
-        REQUIRE(res.second.empty());
-        REQUIRE(res.first.order_status_present == info::OrderStatusPresent::RejectionPresent);
-        REQUIRE(res.first.orderstatus.rejection == info::RejectionReason::modification_trivial);
+        test_manager.modifyOrder(morder);
+        auto getorder_res = orderbook.getOrder(1);
+        REQUIRE(getorder_res.first);
+        auto orig_order = getorder_res.second;
+        REQUIRE(orig_order.getCurrQty() == 100);
+        REQUIRE(orig_order.getPrice() == 100);
+        REQUIRE(orderbook.numLevels() == 1);
+        REQUIRE(orderbook.numOrders() == 1);
     }
     SECTION("Cancel Only Order Left in Level") {
+        uint64_t ticker = util::convertStrToEightBytes("CancelOne");
         test_manager.createOrderBook(ticker);
-        Order test_order(1, 100, 100, info::OrderCommon(1, 1, ticker));
+        Order test_order(1, conn, 100, 100, info::OrderCommon(1, 1, ticker));
         test_manager.addOrder(test_order);
         auto sub_res = test_manager.subscribe(ticker);
         REQUIRE(sub_res.first);
         auto& orderbook = sub_res.second;
         REQUIRE(orderbook.numOrders() == 1);
         REQUIRE(orderbook.numLevels() == 1);
-        info::CancelOrder cancel_order(1, 1, ticker);
+        info::CancelOrder cancel_order(1, 1, ticker, conn);
         test_manager.cancelOrder(cancel_order);
         REQUIRE(orderbook.numOrders() == 0);
         REQUIRE(orderbook.numLevels() == 0);
     }
     SECTION("Cancel All of Two Orders in Level") {
+        uint64_t ticker = util::convertStrToEightBytes("CancelTwo");
         test_manager.createOrderBook(ticker);
-        Order order_one(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        Order order_two(1, 100, 100, info::OrderCommon(2, 2, ticker));
+        Order order_one(1, conn, 100, 100, info::OrderCommon(1, 1, ticker));
+        Order order_two(1, conn, 100, 100, info::OrderCommon(2, 2, ticker));
         test_manager.addOrder(order_one);
         test_manager.addOrder(order_two);
         auto sub_res = test_manager.subscribe(ticker);
@@ -245,22 +263,25 @@ TEST_CASE("OrderBook Operations") {
         auto& orderbook = sub_res.second;
         REQUIRE(orderbook.numOrders() == 2);
         REQUIRE(orderbook.numLevels() == 1);
-        info::CancelOrder cancel_order_one(1, 1, ticker);
-        info::CancelOrder cancel_order_two(2, 2, ticker);
+        info::CancelOrder cancel_order_one(1, 1, ticker, conn);
+        info::CancelOrder cancel_order_two(2, 2, ticker, conn);
         test_manager.cancelOrder(cancel_order_one);
+        REQUIRE(orderbook.numOrders() == 1);
+        REQUIRE(orderbook.numLevels() == 1);
         test_manager.cancelOrder(cancel_order_two);
         REQUIRE(orderbook.numOrders() == 0);
         REQUIRE(orderbook.numLevels() == 0);
     }
     SECTION("Cancel Orders in Middle of Queue in Level") {
+        uint64_t ticker = util::convertStrToEightBytes("CancelFive");
         test_manager.createOrderBook(ticker);
-        info::CancelOrder cancel_order_three(3, 3, ticker);
-        info::CancelOrder cancel_order_four(4, 4, ticker);
-        Order order_one(1, 100, 100, info::OrderCommon(1, 1, ticker));
-        Order order_two(1, 100, 100, info::OrderCommon(2, 2, ticker));
-        Order order_three(1, 100, 100, info::OrderCommon(3, 3, ticker));
-        Order order_four(1, 100, 100, info::OrderCommon(4, 4, ticker));
-        Order order_five(1, 100, 100, info::OrderCommon(5, 5, ticker));
+        info::CancelOrder cancel_order_three(3, 3, ticker, conn);
+        info::CancelOrder cancel_order_four(4, 4, ticker, conn);
+        Order order_one(1, conn, 100, 100, info::OrderCommon(1, 1, ticker));
+        Order order_two(1, conn, 100, 100, info::OrderCommon(2, 2, ticker));
+        Order order_three(1, conn, 100, 100, info::OrderCommon(3, 3, ticker));
+        Order order_four(1, conn, 100, 100, info::OrderCommon(4, 4, ticker));
+        Order order_five(1, conn, 100, 100, info::OrderCommon(5, 5, ticker));
         test_manager.addOrder(order_one);
         test_manager.addOrder(order_two);
         test_manager.addOrder(order_three);
@@ -271,33 +292,28 @@ TEST_CASE("OrderBook Operations") {
         auto& orderbook = sub_res.second;
         REQUIRE(orderbook.numLevels() == 1);
         REQUIRE(orderbook.numOrders() == 5);
-        OrderResult res_three = test_manager.cancelOrder(cancel_order_three);
-        REQUIRE(res_three.order_status_present == info::OrderStatusPresent::CancelOrderPresent);
-        REQUIRE(res_three.orderstatus.cancel_order_status.order_id == 3);
-        REQUIRE(res_three.orderstatus.cancel_order_status.user_id == 3);
-        REQUIRE(res_three.orderstatus.cancel_order_status.ticker == ticker);
+        test_manager.cancelOrder(cancel_order_three);
         REQUIRE(orderbook.numOrders() == 4);
-        OrderResult res_four = test_manager.cancelOrder(cancel_order_four);
-        REQUIRE(res_four.order_status_present == info::OrderStatusPresent::CancelOrderPresent);
-        REQUIRE(res_four.orderstatus.cancel_order_status.order_id == 4);
-        REQUIRE(res_four.orderstatus.cancel_order_status.user_id == 4);
-        REQUIRE(res_four.orderstatus.cancel_order_status.ticker == ticker);
+        test_manager.cancelOrder(cancel_order_four);
         REQUIRE(orderbook.numOrders() == 3);
     }
-    SECTION("Cancel Order that Doesn't Exist") {
+    SECTION("Cancel Order that Doesn't Exist") { 
+        uint64_t ticker = util::convertStrToEightBytes("CancelNonExist");
         test_manager.createOrderBook(ticker);
-        info::CancelOrder cancel_order(1, 1, ticker);
-        OrderResult res = test_manager.cancelOrder(cancel_order);
-        REQUIRE(res.order_status_present == info::OrderStatusPresent::RejectionPresent);
-        REQUIRE(res.orderstatus.rejection == info::RejectionReason::order_not_found);
+        info::CancelOrder cancel_order(1, 1, ticker, conn);
+        REQUIRE_NOTHROW(test_manager.cancelOrder(cancel_order));
     }
     SECTION("Cancel Someone Else's Order") {
+        uint64_t ticker = util::convertStrToEightBytes("CancelOther");
         test_manager.createOrderBook(ticker);
-        Order test_order(1, 100, 100, info::OrderCommon(2, 2, ticker));
+        auto sub_res = test_manager.subscribe(ticker);
+        REQUIRE(sub_res.first);
+        auto& orderbook = sub_res.second;
+        Order test_order(1, conn, 100, 100, info::OrderCommon(2, 2, ticker));
         test_manager.addOrder(test_order);
-        info::CancelOrder cancel_order(2, 1, ticker);
-        OrderResult res = test_manager.cancelOrder(cancel_order);
-        REQUIRE(res.order_status_present == info::OrderStatusPresent::RejectionPresent);
-        REQUIRE(res.orderstatus.rejection == info::RejectionReason::wrong_user_id);
+        info::CancelOrder cancel_order(2, 1, ticker, conn);
+        test_manager.cancelOrder(cancel_order);
+        REQUIRE(orderbook.numOrders() == 1);
+        REQUIRE(orderbook.numLevels() == 1);
     }
 }

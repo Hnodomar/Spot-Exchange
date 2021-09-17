@@ -6,6 +6,7 @@
 #include <optional>
 
 #include "order.hpp"
+#include "limit.hpp"
 #include "level.hpp"
 #include "matchresult.hpp"
 #include "util.hpp"

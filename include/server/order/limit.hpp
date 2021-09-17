@@ -7,7 +7,7 @@ namespace server {
 namespace tradeorder {
 struct Level;
 struct Limit { 
-    Limit(::tradeorder::Order order):
+    Limit(const ::tradeorder::Order& order):
         order(order)
     {}
     Limit() = default;
