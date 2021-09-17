@@ -15,10 +15,10 @@ TradeServer::TradeServer(char* port, const std::string& outputfile="")
     cq_ = builder.AddCompletionQueue();
     trade_server_ = builder.BuildAndStart();
     logger_.write("Server listening on " + server_address);
+    std::cout << "Hello World!\n";
 }
 
 void TradeServer::handleRemoteProcedureCalls() {
-    //makeOrderEntryRPC();
     auto rpcprocessor = [this](){
         std::function<void(bool)>* callback;
         bool ok;
@@ -27,6 +27,7 @@ void TradeServer::handleRemoteProcedureCalls() {
             (*(callback))(ok);
         }
     };
+    makeNewOrderEntryConnection();
     for (uint i = 0; i < std::thread::hardware_concurrency(); ++i) {
         threadpool_.emplace_back(std::thread(rpcprocessor));
     }

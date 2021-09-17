@@ -33,7 +33,6 @@ namespace server {
 class TradeServer {
 public:
     TradeServer(char* port, const std::string& filename);
-    ~TradeServer();
 private:
     void handleRemoteProcedureCalls();
     void createOrderEntryRPC();

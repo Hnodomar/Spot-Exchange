@@ -6,6 +6,8 @@
 #include <grpcpp/alarm.h>
 #include <thread>
 #include <list>
+#include <atomic>
+#include <mutex>
 
 #include "logger.hpp"
 #include "orderentry.grpc.pb.h"
@@ -53,23 +55,11 @@ private:
     void processNewOrderEntry(bool success);
     void processModifyOrderEntry(bool success);
     void processCancelOrderEntry(bool success);
-    void asyncOpStarted() {
-        ++current_async_ops_;
-    }
-    void asyncOpFinished() {
-        --current_async_ops_;
-        if (current_async_ops_ == 0 && on_done_called_) {
+    void terminateConnection();
+    void asyncOpStarted();
+    void asyncOpFinished();
+    void onStreamCancelled(bool); // notification tag callback for stream termination
 
-        }
-          //  done();
-    }
-    void onDone(bool) { // notification tag callback for stream termination
-        on_done_called_ = true;
-        if (current_async_ops_ == 0) {
-
-        }
-          //  done();
-    }
     ServiceType* service_;
     grpc::ServerCompletionQueue* completion_queue_;
     grpc::ServerContext server_context_;
@@ -82,23 +72,25 @@ private:
     TagProcessor process_modifyorder_entry_callback_;
     TagProcessor process_cancelorder_entry_callback_;
     TagProcessor write_from_queue_callback_;
-    TagProcessor on_write_;
     TagProcessor on_finish_;
     TagProcessor verify_userid_callback_;
-    TagProcessor on_done_;
+    TagProcessor stream_cancellation_callback_;
     TagProcessor null_callback_;
     std::function<void(tradeorder::Order&)> add_order_fn_;
     std::function<void(info::ModifyOrder&)> modify_order_fn_;
     std::function<void(info::CancelOrder&)> cancel_order_fn_;
     std::function<void()> create_new_conn_fn_;
-
     std::list<OEResponseType> response_queue_;
+    std::list<OERequestType> request_queue_;
+    std::mutex response_queue_mutex_;
+    std::mutex request_queue_mutex_;
     std::unordered_map<uint64_t, OrderEntryStreamConnection*>& client_streams_;
     uint64_t userid_;
-    int64_t current_async_ops_;
+    static std::atomic<uint64_t> orderid_generator_;
+    std::atomic<uint64_t> current_async_ops_;
     bool server_stream_done_;
     bool client_stream_done_;
-    bool on_done_called_;
+    bool on_streamcancelled_called_;
     bool write_in_progress_;
 };
 
