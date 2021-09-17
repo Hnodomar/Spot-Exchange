@@ -11,6 +11,8 @@
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/alarm.h>
 #include <thread>
+#include <signal.h>
+#include <cstring>
 
 #include "orderentryjobhandlers.hpp"
 
@@ -33,18 +35,18 @@ namespace server {
 class TradeServer {
 public:
     TradeServer(char* port, const std::string& filename);
+    static void shutdownServer();
 private:
     void handleRemoteProcedureCalls();
     void createOrderEntryRPC();
     void makeOrderEntryRPC();
     void makeMarketDataRPC();
-    void setConnectionContext();
     static void makeNewOrderEntryConnection();
-
+    struct ::sigaction disposition_;
     logging::Logger logger_;
     std::mutex taglist_mutex_;
     tradeorder::OrderBookManager ordermanager_;
-    std::unique_ptr<grpc::Server> trade_server_;
+    static std::unique_ptr<grpc::Server> trade_server_;
     static std::unique_ptr<grpc::ServerCompletionQueue> cq_;
     std::vector<std::thread> threadpool_;
     static orderentry::OrderEntryService::AsyncService order_entry_service_;

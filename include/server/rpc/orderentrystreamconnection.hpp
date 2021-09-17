@@ -89,7 +89,6 @@ private:
     static std::atomic<uint64_t> orderid_generator_;
     std::atomic<uint64_t> current_async_ops_;
     bool server_stream_done_;
-    bool client_stream_done_;
     bool on_streamcancelled_called_;
     bool write_in_progress_;
 };

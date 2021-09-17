@@ -5,6 +5,12 @@ using namespace server;
 orderentry::OrderEntryService::AsyncService TradeServer::order_entry_service_;
 std::unordered_map<user_id, OrderEntryStreamConnection*> TradeServer::client_streams_;
 std::unique_ptr<grpc::ServerCompletionQueue> TradeServer::cq_;
+std::unique_ptr<grpc::Server> TradeServer::trade_server_;
+
+void sigintHandler(int sig_no) {
+    TradeServer::shutdownServer();
+}
+
 
 TradeServer::TradeServer(char* port, const std::string& outputfile="") 
   : logger_(outputfile) {
@@ -15,7 +21,20 @@ TradeServer::TradeServer(char* port, const std::string& outputfile="")
     cq_ = builder.AddCompletionQueue();
     trade_server_ = builder.BuildAndStart();
     logger_.write("Server listening on " + server_address);
-    std::cout << "Hello World!\n";
+    disposition_.sa_handler = &sigintHandler;
+    sigemptyset(&disposition_.sa_mask);
+    disposition_.sa_flags = 0;
+    sigaction(SIGINT, &disposition_, NULL);
+    handleRemoteProcedureCalls();
+}
+
+void TradeServer::shutdownServer() {
+    for (const auto& connection : client_streams_)
+        delete connection.second;
+    trade_server_.get()->Shutdown();
+    cq_.get()->Shutdown();
+    std::cout << "Shutdown.\n";
+    exit(0);
 }
 
 void TradeServer::handleRemoteProcedureCalls() {
@@ -31,10 +50,9 @@ void TradeServer::handleRemoteProcedureCalls() {
     for (uint i = 0; i < std::thread::hardware_concurrency(); ++i) {
         threadpool_.emplace_back(std::thread(rpcprocessor));
     }
-}
-
-void TradeServer::setConnectionContext() {
-    
+    while(true) {
+        
+    }
 }
 
 OEJobHandlers TradeServer::job_handlers_ = {

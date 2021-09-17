@@ -8,7 +8,6 @@ OEJobHandlers& job_handlers)
     , grpc_responder_(&server_context_)
     , client_streams_(client_streams)
     , server_stream_done_(false)
-    , client_stream_done_(false)
     , on_streamcancelled_called_(false) 
 {
     add_order_fn_ = job_handlers.add_order_fn;
@@ -62,7 +61,6 @@ void OrderEntryStreamConnection::asyncOpFinished() {
     if (on_streamcancelled_called_ && current_async_ops_ == 0) {
         terminateConnection();
     }
-
 }
 
 void OrderEntryStreamConnection::verifyID(bool success) {
@@ -96,13 +94,11 @@ void OrderEntryStreamConnection::verifyID(bool success) {
 }
 
 void OrderEntryStreamConnection::initialiseOEConn(bool success) {
+    create_new_conn_fn_();
     asyncOpFinished();
     if (success) {
         asyncOpStarted();
         grpc_responder_.Read(&oe_request_, &verify_userid_callback_);
-    }
-    else {
-        client_stream_done_ = true;
     }
 }
 
@@ -113,9 +109,6 @@ void OrderEntryStreamConnection::readOrderEntryCallback(bool success) {
         asyncOpStarted();
         grpc_responder_.Read(&oe_request_, &read_orderentry_callback_);
     }
-    else {
-        client_stream_done_ = true;
-    }
 }
 
 void OrderEntryStreamConnection::writeFromQueue(bool success) {
@@ -125,9 +118,6 @@ void OrderEntryStreamConnection::writeFromQueue(bool success) {
     if (success && !response_queue_.empty()) {
         asyncOpStarted();
         grpc_responder_.Write(response_queue_.front(), &write_from_queue_callback_);
-    }
-    else {
-        client_stream_done_ = true;
     }
 }
 
