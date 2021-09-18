@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <cstring>
 #include <utility>
+#include <shared_mutex>
 
 #include "orderbook.hpp"
 

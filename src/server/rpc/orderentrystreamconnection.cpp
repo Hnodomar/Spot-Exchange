@@ -34,10 +34,10 @@ OEJobHandlers& job_handlers)
     );
 }
 
-thread_local OEResponseType neworder_ack; 
-thread_local OEResponseType modifyorder_ack;
-thread_local OEResponseType cancelorder_ack;
-thread_local OEResponseType rejection_ack;
+thread_local OEResponseType OrderEntryStreamConnection::neworder_ack; 
+thread_local OEResponseType OrderEntryStreamConnection::modifyorder_ack;
+thread_local OEResponseType OrderEntryStreamConnection::cancelorder_ack;
+thread_local OEResponseType OrderEntryStreamConnection::rejection_ack;
 std::atomic<uint64_t> OrderEntryStreamConnection::orderid_generator_ = 1;
 
 void OrderEntryStreamConnection::terminateConnection() {

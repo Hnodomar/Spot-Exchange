@@ -25,12 +25,8 @@ using Common = orderentry::OrderCommon;
 
 // to avoid constant reallocation of these message types, we re-use them
 // and keep their size constant. zero-initialised: http://en.cppreference.com/w/cpp/language/initialization
-extern thread_local OEResponseType neworder_ack; 
-extern thread_local OEResponseType modifyorder_ack;
-extern thread_local OEResponseType cancelorder_ack;
-extern thread_local OEResponseType rejection_ack;
 
-class OrderEntryStreamConnection {
+class OrderEntryStreamConnection final {
 public:
     OrderEntryStreamConnection(
         ServiceType* service, 
@@ -91,6 +87,11 @@ private:
     bool server_stream_done_;
     bool on_streamcancelled_called_;
     bool write_in_progress_;
+
+    static thread_local OEResponseType neworder_ack; 
+    static thread_local OEResponseType modifyorder_ack;
+    static thread_local OEResponseType cancelorder_ack;
+    static thread_local OEResponseType rejection_ack;
 };
 
 #endif

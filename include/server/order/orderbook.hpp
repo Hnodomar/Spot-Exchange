@@ -5,6 +5,7 @@
 #include <map>
 #include <array>
 #include <utility>
+#include <mutex>
 #ifndef TEST_BUILD
 #include "orderentrystreamconnection.hpp"
 #endif
@@ -42,21 +43,24 @@ using GetOrderResult = std::pair<bool, ::tradeorder::Order&>;
 using Rejection = orderentry::OrderEntryRejection::RejectionReason; 
 #endif
 enum class Side {Sell, Buy};
-enum class FullyFilled {True, False};
 
 class OrderBook {
 public:
     using AddOrderFn = void (server::tradeorder::OrderBook::*)(::tradeorder::Order&);
-    OrderBook(BidMatcher bidmatcher = &server::matching::FIFOMatch<bidbook>, 
-      AskMatcher askmatcher = &server::matching::FIFOMatch<askbook>);
-    template<Side T> void addOrder(::tradeorder::Order& order);
-    static const std::array<AddOrderFn, 2> add_order;
+    OrderBook(BidMatcher bidmatcher, AskMatcher askmatcher);
+    OrderBook(const OrderBook& orderbook);
+    OrderBook();
+    void addOrder(::tradeorder::Order& order);
     void modifyOrder(const info::ModifyOrder& modify_order);
     void cancelOrder(const info::CancelOrder& cancel_order);
     GetOrderResult getOrder(uint64_t order_id);
     uint64_t numOrders() const {return limitorders_.size();}
     uint64_t numLevels() const {return asks_.size() + bids_.size();}
+    BidMatcher getBidMatcher() const {return MatchBids;}
+    AskMatcher getAskMatcher() const {return MatchAsks;}
 private:
+    template<Side T> void addOrder(::tradeorder::Order& order);
+    static const std::array<AddOrderFn, 2> add_order;
     template<typename T> Level& getSideLevel(const uint64_t price, T& sidebook);
     void placeOrderInBidBook(::tradeorder::Order& order);
     void placeOrderInAskBook(::tradeorder::Order& order);
@@ -69,6 +73,7 @@ private:
     askbook asks_;
     bidbook bids_;
     std::unordered_map<order_id, Limit> limitorders_;
+    std::mutex orderbook_mutex_;
     MatchResult (*MatchBids)(::tradeorder::Order& order_to_match, bidbook& bids, limitbook& limitbook);
     MatchResult (*MatchAsks)(::tradeorder::Order& order_to_match, askbook& asks, limitbook& limitbook);
 };
@@ -103,8 +108,8 @@ inline void OrderBook::addOrder<Side::Buy>(::tradeorder::Order& order) {
         auto match_result = MatchAsks(order, asks_, limitorders_);
         if (order.getCurrQty() != 0) {
             placeOrderInBidBook(order); // want to update book before anyone is informed of result
-            communicateMatchResults(match_result, order);
         }
+        communicateMatchResults(match_result, order);
         return;
     }
     placeOrderInBidBook(order);
@@ -127,8 +132,8 @@ inline void OrderBook::addOrder<Side::Sell>(::tradeorder::Order& order) {
         auto match_result = MatchBids(order, bids_, limitorders_);
         if (order.getCurrQty() != 0) {
             placeOrderInAskBook(order); // want to update book before anyone is informed of result
-            communicateMatchResults(match_result, order);
         }
+        communicateMatchResults(match_result, order);
         return;
     }
     placeOrderInAskBook(order);

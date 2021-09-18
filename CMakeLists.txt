@@ -7,25 +7,6 @@ set(BOOST_MIN_VERSION "1.70.0")
 
 find_package(Boost REQUIRED COMPONENTS iostreams thread)
 
-file(GLOB server_src 
-    ${PROJECT_SOURCE_DIR}/src/server/*.cpp
-    ${PROJECT_SOURCE_DIR}/src/server/matching/*.cpp
-    ${PROJECT_SOURCE_DIR}/src/server/order/*.cpp
-    ${PROJECT_SOURCE_DIR}/src/server/rpc/*.cpp
-)
-
-file(GLOB server_inc
-    ${PROJECT_SOURCE_DIR}/include/server
-    ${PROJECT_SOURCE_DIR}/include/server/matching
-    ${PROJECT_SOURCE_DIR}/include/server/order
-    ${PROJECT_SOURCE_DIR}/include/util
-    ${PROJECT_SOURCE_DIR}/include/info
-    ${PROJECT_SOURCE_DIR}/include/server/rpc
-)
-
-enable_testing()
-add_subdirectory(tests)
-
 find_package(Protobuf CONFIG)
 if (${Protobuf_FOUND})
     set(protobuf_MODULE_COMPATIBLE TRUE)
@@ -96,6 +77,33 @@ target_link_libraries(oe_grpc_proto
     ${_PROTOBUF_LIBPROTOBUF}
 )
 
+
+file(GLOB server_src 
+    ${PROJECT_SOURCE_DIR}/src/server/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/server/matching/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/server/order/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/server/rpc/*.cpp
+)
+
+file(GLOB server_inc
+    ${PROJECT_SOURCE_DIR}/include/server
+    ${PROJECT_SOURCE_DIR}/include/server/matching
+    ${PROJECT_SOURCE_DIR}/include/server/order
+    ${PROJECT_SOURCE_DIR}/include/util
+    ${PROJECT_SOURCE_DIR}/include/info
+    ${PROJECT_SOURCE_DIR}/include/server/rpc
+)
+
+file(GLOB client_src
+    ${PROJECT_SOURCE_DIR}/src/client/*.cpp
+)
+
+file(GLOB client_inc
+    ${PROJECT_SOURCE_DIR}/include/client
+    ${PROJECT_SOURCE_DIR}/include/info
+    ${PROJECT_SOURCE_DIR}/include/util
+)
+
 add_executable(tradeserver ${server_src})
 target_include_directories(tradeserver PUBLIC ${server_inc})
 target_link_libraries(tradeserver 
@@ -105,5 +113,18 @@ target_link_libraries(tradeserver
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF}
 )
+
+add_executable(tradeclient ${client_src})
+target_include_directories(tradeclient PUBLIC ${client_inc})
+target_link_libraries(tradeclient
+    ${Boost_LIBRARIES}
+    oe_grpc_proto
+    ${_REFLECTION}
+    ${_GRPC_GRPCPP}
+    ${_PROTOBUF_LIBPROTOBUF}
+)
+
+enable_testing()
+add_subdirectory(tests)
 
 include_directories(${Boost_INCLUDE_DIR} include/)

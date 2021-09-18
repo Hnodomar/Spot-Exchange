@@ -12,10 +12,25 @@ OrderBook::OrderBook(BidMatcher bidmatcher, AskMatcher askmatcher)
     : MatchBids(bidmatcher), MatchAsks(askmatcher) 
 {}
 
+OrderBook::OrderBook(const OrderBook& orderbook) {
+    MatchBids = orderbook.getBidMatcher();
+    MatchAsks = orderbook.getAskMatcher();
+}
+
+OrderBook::OrderBook() {
+    MatchBids = &server::matching::FIFOMatch<bidbook>;
+    MatchAsks = &server::matching::FIFOMatch<askbook>;
+}
+
 const std::array<OrderBook::AddOrderFn, 2> OrderBook::add_order{
     &OrderBook::addOrder<Side::Sell>,
     &OrderBook::addOrder<Side::Buy>
 };
+
+void OrderBook::addOrder(::tradeorder::Order& order) {
+    std::lock_guard<std::mutex> lock(orderbook_mutex_);
+    (this->*OrderBook::add_order[order.isBuySide()])(order);
+}
 
 // these will be inlined (hopefully) and are just for readability
 inline void OrderBook::placeLimitInBookLevel(Level* level, ::tradeorder::Order& order) {

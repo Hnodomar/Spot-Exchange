@@ -6,6 +6,27 @@ service OrderEntryService {
     rpc OrderEntry(stream OrderEntryRequest) returns (stream OrderEntryResponse) {}
 }
 
+service MarketDataService {
+    rpc MarketData(InitiateMarketDataStreamRequest) returns (stream MarketDataResponse) {}
+}
+
+message InitiateMarketDataStreamRequest {}
+
+message MarketDataResponse {
+    oneof OrderEntryType {
+        NewOrder new_order = 1;
+        ModifyOrder modify_order = 2;
+        CancelOrder cancel_order = 3;
+        OrderEntryFill fill = 4;
+        Notification notification = 5;
+    }
+}
+
+// message for market hours open/close etc
+message Notification {
+    uint32 flag = 1;
+}
+
 message OrderEntryRequest {
     oneof OrderEntryType {
         NewOrder new_order = 1;

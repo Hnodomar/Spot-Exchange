@@ -18,7 +18,7 @@ void OrderBookManager::addOrder(::tradeorder::Order& order) {
         #endif
         return;
     }
-    (itr->second.*OrderBook::add_order[order.isBuySide()])(order);
+    itr->second.addOrder(order);
 }
 
 void OrderBookManager::modifyOrder(const info::ModifyOrder& modify_order) {

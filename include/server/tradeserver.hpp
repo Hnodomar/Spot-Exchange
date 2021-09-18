@@ -4,6 +4,7 @@
 #include <memory>
 #include <fstream>
 #include <functional>
+#include <chrono>
 #include <iostream>
 #include <unordered_map>
 #include <list>
@@ -17,6 +18,7 @@
 #include "orderentryjobhandlers.hpp"
 
 #include "orderentry.grpc.pb.h"
+#include "marketdatadispatcher.hpp"
 #include "orderentrystreamconnection.hpp"
 #include "orderbookmanager.hpp"
 #include "order.hpp"
@@ -32,24 +34,25 @@ using OrderRejection = orderentry::OrderEntryRejection::RejectionReason;
 using user_id = uint64_t;
 
 namespace server {
-class TradeServer {
+class TradeServer final {
 public:
     TradeServer(char* port, const std::string& filename);
     static void shutdownServer();
 private:
     void handleRemoteProcedureCalls();
     void createOrderEntryRPC();
-    void makeOrderEntryRPC();
-    void makeMarketDataRPC();
+    void setupMarketDataStream();
     static void makeNewOrderEntryConnection();
     struct ::sigaction disposition_;
     logging::Logger logger_;
     std::mutex taglist_mutex_;
     tradeorder::OrderBookManager ordermanager_;
+    rpc::MarketDataDispatcher marketdata_dispatcher_;
+    std::vector<std::thread> threadpool_;
     static std::unique_ptr<grpc::Server> trade_server_;
     static std::unique_ptr<grpc::ServerCompletionQueue> cq_;
-    std::vector<std::thread> threadpool_;
     static orderentry::OrderEntryService::AsyncService order_entry_service_;
+    static orderentry::MarketDataService::AsyncService market_data_service_;
     static std::unordered_map<user_id, OrderEntryStreamConnection*> client_streams_;
     static OEJobHandlers job_handlers_;
 };
