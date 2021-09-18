@@ -41,6 +41,7 @@ thread_local OEResponseType rejection_ack;
 std::atomic<uint64_t> OrderEntryStreamConnection::orderid_generator_ = 1;
 
 void OrderEntryStreamConnection::terminateConnection() {
+    std::cout << "Connection terminated\n";
     client_streams_.erase(userid_);
     delete this;
 }
@@ -50,6 +51,7 @@ void OrderEntryStreamConnection::asyncOpStarted() {
 }
 
 void OrderEntryStreamConnection::onStreamCancelled(bool) {
+    std::cout << "stream cancelled async ops: " << current_async_ops_ << std::endl;
     on_streamcancelled_called_ = true;
     if (current_async_ops_ == 0) {
         terminateConnection();
@@ -160,6 +162,7 @@ void OrderEntryStreamConnection::acknowledgeEntry() {
 
 void OrderEntryStreamConnection::processNewOrderEntry(bool success) {
     using namespace tradeorder;
+    asyncOpFinished();
     const auto& new_order = oe_request_.new_order();
     const auto& order_common = new_order.order_common();
     Order order(
@@ -184,11 +187,13 @@ const uint64_t orderid, const uint64_t ticker) {
     common_obj->set_user_id(userid);
     common_obj->set_order_id(orderid);
     common_obj->set_ticker(ticker);
+    asyncOpStarted();
     grpc_responder_.Write(rejection_ack, &null_callback_);
 }
 
 void OrderEntryStreamConnection::processModifyOrderEntry(bool success) {
     using namespace info;
+    asyncOpFinished();
     const auto& modify_order = oe_request_.new_order();
     const auto& order_common = modify_order.order_common();
     info::ModifyOrder morder(
@@ -207,6 +212,7 @@ void OrderEntryStreamConnection::processModifyOrderEntry(bool success) {
 
 void OrderEntryStreamConnection::processCancelOrderEntry(bool success) {
     using namespace info;
+    asyncOpFinished();
     auto cancel_order = oe_request_.cancel_order();
     auto order_common = cancel_order.order_common();
     info::CancelOrder corder(

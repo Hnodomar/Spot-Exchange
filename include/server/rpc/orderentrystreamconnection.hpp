@@ -42,6 +42,7 @@ public:
     void queueWrite(const OEResponseType* response);
     void sendRejection(const Rejection rejection, const uint64_t userid,
         const uint64_t orderid, const uint64_t ticker);
+    void onStreamCancelled(bool); // notification tag callback for stream termination
 private:
     void writeFromQueue(bool success);
     void initialiseOEConn(bool success);
@@ -58,7 +59,6 @@ private:
     void terminateConnection();
     void asyncOpStarted();
     void asyncOpFinished();
-    void onStreamCancelled(bool); // notification tag callback for stream termination
 
     ServiceType* service_;
     grpc::ServerCompletionQueue* completion_queue_;
