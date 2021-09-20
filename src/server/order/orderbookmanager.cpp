@@ -4,6 +4,11 @@
 using namespace server::tradeorder;
 
 std::unordered_map<ticker, OrderBook> OrderBookManager::orderbooks_;
+rpc::MarketDataDispatcher* OrderBookManager::marketdata_dispatcher_;
+
+OrderBookManager::OrderBookManager(rpc::MarketDataDispatcher* marketdata_dispatcher) {
+    OrderBookManager::marketdata_dispatcher_ = marketdata_dispatcher;
+}
 
 void OrderBookManager::addOrder(::tradeorder::Order& order) {
     auto itr = OrderBookManager::orderbooks_.find(order.getTicker());
@@ -23,26 +28,18 @@ void OrderBookManager::addOrder(::tradeorder::Order& order) {
 
 void OrderBookManager::modifyOrder(const info::ModifyOrder& modify_order) {
     if (modify_order.quantity == 0) {
-        #ifndef TEST_BUILD
-        modify_order.connection->sendRejection(
+        sendRejection(
             static_cast<Rejection>(MODIFICATION_TRIVIAL),
-            modify_order.user_id,
-            modify_order.order_id,
-            modify_order.ticker
+            modify_order
         );
-        #endif
         return;
     }
     auto itr = OrderBookManager::orderbooks_.find(modify_order.ticker);
     if (itr == OrderBookManager::orderbooks_.end()) {
-        #ifndef TEST_BUILD
-        modify_order.connection->sendRejection(
+        sendRejection(
             static_cast<Rejection>(ORDERBOOK_NOT_FOUND),
-            modify_order.user_id,
-            modify_order.order_id,
-            modify_order.ticker
+            modify_order
         );
-        #endif
         return;
     }
     itr->second.modifyOrder(modify_order);
@@ -51,14 +48,10 @@ void OrderBookManager::modifyOrder(const info::ModifyOrder& modify_order) {
 void OrderBookManager::cancelOrder(const info::CancelOrder& cancel_order) {
     auto itr = OrderBookManager::orderbooks_.find(cancel_order.ticker);
     if (itr == OrderBookManager::orderbooks_.end()) {
-        #ifndef TEST_BUILD
-        cancel_order.connection->sendRejection(
+        sendRejection(
             static_cast<Rejection>(ORDERBOOK_NOT_FOUND),
-            cancel_order.user_id,
-            cancel_order.order_id,
-            cancel_order.ticker
+            cancel_order
         );
-        #endif
         return;
     }
     itr->second.cancelOrder(cancel_order);
@@ -68,7 +61,7 @@ bool OrderBookManager::createOrderBook(const uint64_t ticker) {
     auto itr = OrderBookManager::orderbooks_.find(ticker);
     if (itr != OrderBookManager::orderbooks_.end())
         return false;
-    auto emplace_itr = OrderBookManager::orderbooks_.emplace(ticker, OrderBook());
+    auto emplace_itr = OrderBookManager::orderbooks_.emplace(ticker, OrderBook(marketdata_dispatcher_));
     if (emplace_itr.second)
         return true;
     return false;

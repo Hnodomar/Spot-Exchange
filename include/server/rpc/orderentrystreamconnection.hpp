@@ -23,9 +23,6 @@ using TagProcessor = std::function<void(bool)>;
 using Rejection = orderentry::OrderEntryRejection::RejectionReason;
 using Common = orderentry::OrderCommon;
 
-// to avoid constant reallocation of these message types, we re-use them
-// and keep their size constant. zero-initialised: http://en.cppreference.com/w/cpp/language/initialization
-
 class OrderEntryStreamConnection final {
 public:
     OrderEntryStreamConnection(
@@ -35,23 +32,27 @@ public:
         OEJobHandlers& jobhandlers
     );
     const uint64_t getUserID() const {return userid_;}
-    void queueWrite(const OEResponseType* response);
+    void writeToClient(const OEResponseType* response);
     void sendRejection(const Rejection rejection, const uint64_t userid,
         const uint64_t orderid, const uint64_t ticker);
     void onStreamCancelled(bool); // notification tag callback for stream termination
 private:
-    void writeFromQueue(bool success);
+    void responsePushBack(const OEResponseType* response);
+    void sendResponse(const OEResponseType* response);
+    void sendResponseFromQueue(bool success);
     void initialiseOEConn(bool success);
     void verifyID(bool success);
     void readOrderEntryCallback(bool success);
-    void acknowledgeEntry();
+    void processEntry();
     bool userIDUsageRejection(const Common& common);
-    void sendNewOrderAcknowledgement(const orderentry::NewOrder& new_order);
-    void sendModifyOrderAcknowledgement(const orderentry::ModifyOrder& modify_order);
-    void sendCancelOrderAcknowledgement(const orderentry::CancelOrder& cancel_order);
-    void processNewOrderEntry(bool success);
-    void processModifyOrderEntry(bool success);
-    void processCancelOrderEntry(bool success);
+    template<typename OrderType>
+    void handleOrderType(const OrderType& order);
+    void acknowledgeEntry(const orderentry::NewOrder& new_order);
+    void acknowledgeEntry(const orderentry::ModifyOrder& modify_order);
+    void acknowledgeEntry(const orderentry::CancelOrder& cancel_order);
+    void processOrderEntry(const orderentry::NewOrder& new_order);
+    void processOrderEntry(const orderentry::ModifyOrder& modify_order);
+    void processOrderEntry(const orderentry::CancelOrder& cancel_order);
     void terminateConnection();
     void asyncOpStarted();
     void asyncOpFinished();
@@ -64,14 +65,12 @@ private:
     grpc::ServerAsyncReaderWriter<OEResponseType, OERequestType> grpc_responder_;
     TagProcessor initialise_oe_conn_callback_;
     TagProcessor read_orderentry_callback_;
-    TagProcessor process_neworder_entry_callback_;
-    TagProcessor process_modifyorder_entry_callback_;
-    TagProcessor process_cancelorder_entry_callback_;
-    TagProcessor write_from_queue_callback_;
     TagProcessor on_finish_;
     TagProcessor verify_userid_callback_;
     TagProcessor stream_cancellation_callback_;
     TagProcessor null_callback_;
+    TagProcessor sendResponseFromQueue_cb_;
+    void (OrderEntryStreamConnection::*write_fn_)(const OEResponseType*);
     std::function<void(tradeorder::Order&)> add_order_fn_;
     std::function<void(info::ModifyOrder&)> modify_order_fn_;
     std::function<void(info::CancelOrder&)> cancel_order_fn_;
@@ -79,7 +78,6 @@ private:
     std::list<OEResponseType> response_queue_;
     std::list<OERequestType> request_queue_;
     std::mutex response_queue_mutex_;
-    std::mutex request_queue_mutex_;
     std::unordered_map<uint64_t, OrderEntryStreamConnection*>& client_streams_;
     uint64_t userid_;
     static std::atomic<uint64_t> orderid_generator_;
@@ -89,9 +87,18 @@ private:
     bool write_in_progress_;
 
     static thread_local OEResponseType neworder_ack; 
-    static thread_local OEResponseType modifyorder_ack;
-    static thread_local OEResponseType cancelorder_ack;
+    static thread_local OEResponseType modorder_ack; 
+    static thread_local OEResponseType cancelorder_ack; 
     static thread_local OEResponseType rejection_ack;
 };
+
+template<typename OrderType>
+inline void OrderEntryStreamConnection::handleOrderType(const OrderType& order) {
+    if (userIDUsageRejection(order.order_common())) {
+        return;
+    }
+    acknowledgeEntry(order);
+    processOrderEntry(order);
+}
 
 #endif

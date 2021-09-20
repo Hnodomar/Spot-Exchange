@@ -18,11 +18,8 @@ OEJobHandlers& job_handlers)
     read_orderentry_callback_ = [this](bool success){this->readOrderEntryCallback(success);};
     null_callback_ = [this](bool){this->asyncOpFinished();};
     verify_userid_callback_ = [this](bool success){this->verifyID(success);};
-    process_neworder_entry_callback_ = [this](bool success){this->processNewOrderEntry(success);};
-    process_modifyorder_entry_callback_ = [this](bool success){this->processModifyOrderEntry(success);};
-    process_cancelorder_entry_callback_ = [this](bool success){this->processCancelOrderEntry(success);};
-    write_from_queue_callback_ = [this](bool success){this->writeFromQueue(success);};
     stream_cancellation_callback_ = [this](bool success){this->onStreamCancelled(success);};
+    sendResponseFromQueue_cb_ = [this](bool success){this->sendResponseFromQueue(success);};
     server_context_.AsyncNotifyWhenDone(&stream_cancellation_callback_); // to get notification when request cancelled
     asyncOpStarted();
     service_->RequestOrderEntry(
@@ -35,8 +32,8 @@ OEJobHandlers& job_handlers)
 }
 
 thread_local OEResponseType OrderEntryStreamConnection::neworder_ack; 
-thread_local OEResponseType OrderEntryStreamConnection::modifyorder_ack;
-thread_local OEResponseType OrderEntryStreamConnection::cancelorder_ack;
+thread_local OEResponseType OrderEntryStreamConnection::modorder_ack; 
+thread_local OEResponseType OrderEntryStreamConnection::cancelorder_ack; 
 thread_local OEResponseType OrderEntryStreamConnection::rejection_ack;
 std::atomic<uint64_t> OrderEntryStreamConnection::orderid_generator_ = 1;
 
@@ -107,63 +104,60 @@ void OrderEntryStreamConnection::initialiseOEConn(bool success) {
 void OrderEntryStreamConnection::readOrderEntryCallback(bool success) {
     asyncOpFinished();
     if (success) {
-        acknowledgeEntry();
+        processEntry();
         asyncOpStarted();
-        grpc_responder_.Read(&oe_request_, &read_orderentry_callback_);
+        grpc_responder_.Read(&oe_request_, &read_orderentry_callback_); // todo: put to back of queue
     }
 }
 
-void OrderEntryStreamConnection::writeFromQueue(bool success) {
-    asyncOpFinished();
-    std::lock_guard<std::mutex> lock(this->response_queue_mutex_);
-    response_queue_.pop_front();
-    if (success && !response_queue_.empty()) {
-        asyncOpStarted();
-        grpc_responder_.Write(response_queue_.front(), &write_from_queue_callback_);
-    }
+void OrderEntryStreamConnection::writeToClient(const OEResponseType* response) {
+    std::lock_guard<std::mutex> lock(response_queue_mutex_);
+    (this->*write_fn_)(response);
 }
 
-void OrderEntryStreamConnection::queueWrite(const OEResponseType* response) {
-    std::lock_guard<std::mutex> lock(this->response_queue_mutex_);
-    response_queue_.push_back(std::move(*response));
+void OrderEntryStreamConnection::responsePushBack(const OEResponseType* response) {
+    response_queue_.push_back(*response);
+}
+
+void OrderEntryStreamConnection::sendResponse(const OEResponseType* response) {
+    response_queue_.push_back(*response);
     asyncOpStarted();
-    alarm_.Set(completion_queue_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), &write_from_queue_callback_);
+    grpc_responder_.Write(*response, &sendResponseFromQueue_cb_);
+    write_fn_ = &OrderEntryStreamConnection::responsePushBack;
 }
 
-void OrderEntryStreamConnection::acknowledgeEntry() {
+void OrderEntryStreamConnection::sendResponseFromQueue(bool success) {
+    asyncOpFinished();
+    std::lock_guard<std::mutex> lock(response_queue_mutex_);
+    response_queue_.pop_front();
+    if (!response_queue_.empty() && success) {
+        grpc_responder_.Write(response_queue_.front(), &sendResponseFromQueue_cb_);
+    }
+    else
+        write_fn_ = &OrderEntryStreamConnection::sendResponse;
+}
+
+void OrderEntryStreamConnection::processEntry() {
     auto order_type = oe_request_.OrderEntryType_case();
     using type = OERequestType::OrderEntryTypeCase;
     switch(order_type) {
-        case type::kNewOrder: {
-            const auto& new_order = oe_request_.new_order();
-            if (userIDUsageRejection(new_order.order_common()))
-                return;
-            sendNewOrderAcknowledgement(new_order);
+        case type::kNewOrder:
+            handleOrderType(oe_request_.new_order());
             break;
-        }
-        case type::kModifyOrder: {
-            const auto& modify_order = oe_request_.modify_order();
-            if (userIDUsageRejection(modify_order.order_common()))
-                return;
-            sendModifyOrderAcknowledgement(modify_order);
+        case type::kModifyOrder:
+            handleOrderType(oe_request_.modify_order());
             break;
-        }
-        case type::kCancelOrder: {
-            const auto& cancel_order = oe_request_.cancel_order();
-            if (userIDUsageRejection(cancel_order.order_common()))
-                return;
-            sendCancelOrderAcknowledgement(cancel_order);
+        case type::kCancelOrder:
+            handleOrderType(oe_request_.cancel_order());
             break;
-        }
         default:
             break;
     }
 }
 
-void OrderEntryStreamConnection::processNewOrderEntry(bool success) {
+void OrderEntryStreamConnection::processOrderEntry(const orderentry::NewOrder& new_order) {
     using namespace tradeorder;
     asyncOpFinished();
-    const auto& new_order = oe_request_.new_order();
     const auto& order_common = new_order.order_common();
     Order order(
         new_order.is_buy_side(),
@@ -191,10 +185,9 @@ const uint64_t orderid, const uint64_t ticker) {
     grpc_responder_.Write(rejection_ack, &null_callback_);
 }
 
-void OrderEntryStreamConnection::processModifyOrderEntry(bool success) {
+void OrderEntryStreamConnection::processOrderEntry(const orderentry::ModifyOrder& modify_order) {
     using namespace info;
     asyncOpFinished();
-    const auto& modify_order = oe_request_.new_order();
     const auto& order_common = modify_order.order_common();
     info::ModifyOrder morder(
         modify_order.is_buy_side(),
@@ -210,10 +203,9 @@ void OrderEntryStreamConnection::processModifyOrderEntry(bool success) {
     modify_order_fn_(morder);
 }
 
-void OrderEntryStreamConnection::processCancelOrderEntry(bool success) {
+void OrderEntryStreamConnection::processOrderEntry(const orderentry::CancelOrder& cancel_order) {
     using namespace info;
     asyncOpFinished();
-    auto cancel_order = oe_request_.cancel_order();
     auto order_common = cancel_order.order_common();
     info::CancelOrder corder(
         order_common.order_id(),
@@ -224,65 +216,37 @@ void OrderEntryStreamConnection::processCancelOrderEntry(bool success) {
     cancel_order_fn_(corder);
 }
 
-void OrderEntryStreamConnection::sendNewOrderAcknowledgement(const orderentry::NewOrder& new_order) {
-    auto noa_status = neworder_ack.mutable_new_order_ack();
-    noa_status->set_is_buy_side(new_order.is_buy_side());
-    noa_status->set_quantity(new_order.quantity());
-    noa_status->set_price(new_order.price());
-    auto noa_com_status = noa_status->mutable_status_common();
-    auto new_order_common = new_order.order_common();
-    noa_com_status->set_order_id(new_order_common.order_id());
-    noa_com_status->set_ticker(new_order_common.ticker());
-    noa_com_status->set_user_id(new_order_common.user_id());
-    noa_status->set_timestamp(util::getUnixTimestamp());
-    std::lock_guard<std::mutex> lock(request_queue_mutex_);
-    request_queue_.emplace_back(std::move(oe_request_));
-    asyncOpStarted();
-    grpc_responder_.Write(neworder_ack, &process_neworder_entry_callback_);
-}
-
-void OrderEntryStreamConnection::sendModifyOrderAcknowledgement(const orderentry::ModifyOrder& modify_order) {
-    auto moa_status = modifyorder_ack.mutable_modify_order_ack();
-    moa_status->set_is_buy_side(modify_order.is_buy_side());
-    moa_status->set_quantity(modify_order.quantity());
-    moa_status->set_price(modify_order.price());
-    auto moa_com_status = moa_status->mutable_status_common();
-    auto modify_order_common = modify_order.order_common();
-    moa_com_status->set_order_id(modify_order_common.order_id());
-    moa_com_status->set_ticker(modify_order_common.ticker());
-    moa_com_status->set_user_id(modify_order_common.user_id());
-    moa_status->set_timestamp(util::getUnixTimestamp());
-    std::lock_guard<std::mutex> lock(request_queue_mutex_);
-    request_queue_.emplace_back(std::move(oe_request_));
-    asyncOpStarted();
-    grpc_responder_.Write(modifyorder_ack, &process_modifyorder_entry_callback_);
-}
-
-void OrderEntryStreamConnection::sendCancelOrderAcknowledgement(const orderentry::CancelOrder& cancel_order) {
-    auto coa_status = cancelorder_ack.mutable_cancel_order_ack();
-    auto coa_com_status = coa_status->mutable_status_common();
-    auto cancel_order_common = cancel_order.order_common();
-    coa_com_status->set_order_id(cancel_order_common.order_id());
-    coa_com_status->set_ticker(cancel_order_common.ticker());
-    coa_com_status->set_user_id(cancel_order_common.user_id());
-    coa_status->set_timestamp(util::getUnixTimestamp());
-    std::lock_guard<std::mutex> lock(request_queue_mutex_);
-    request_queue_.emplace_back(std::move(oe_request_));
-    asyncOpStarted();
-    grpc_responder_.Write(cancelorder_ack, &process_cancelorder_entry_callback_);
-}
-
 bool OrderEntryStreamConnection::userIDUsageRejection(const orderentry::OrderCommon& common) {
     if (common.user_id() != userid_) {
         auto rejection = rejection_ack.mutable_rejection();
         auto rejection_common = rejection->mutable_order_common();
-        rejection_common->set_user_id(common.user_id());
-        rejection_common->set_ticker(common.ticker());
-        rejection_common->set_order_id(common.order_id());
+        *rejection_common = common;
         rejection->set_rejection_response(orderentry::OrderEntryRejection::wrong_user_id);
-        asyncOpStarted();
-        grpc_responder_.Write(rejection_ack, &null_callback_);
+        writeToClient(&rejection_ack);
         return true;
     }
     return false;
+}
+
+void OrderEntryStreamConnection::acknowledgeEntry(const orderentry::NewOrder& new_order) {
+    auto status = neworder_ack.mutable_new_order_ack();
+    *status->mutable_new_order() = new_order;
+    *status->mutable_new_order()->mutable_order_common() = new_order.order_common();
+    status->set_timestamp(util::getUnixTimestamp());
+    writeToClient(&neworder_ack);
+}
+
+void OrderEntryStreamConnection::acknowledgeEntry(const orderentry::ModifyOrder& modify_order) {
+    auto status = modorder_ack.mutable_modify_order_ack();
+    *status->mutable_modify_order() = modify_order;
+    *status->mutable_modify_order()->mutable_order_common() = modify_order.order_common();
+    status->set_timestamp(util::getUnixTimestamp());
+    writeToClient(&modorder_ack);
+}
+
+void OrderEntryStreamConnection::acknowledgeEntry(const orderentry::CancelOrder& cancel_order) {
+    auto status = cancelorder_ack.mutable_cancel_order_ack();
+    *(status->mutable_status_common()) = cancel_order.order_common();
+    status->set_timestamp(util::getUnixTimestamp());
+    writeToClient(&cancelorder_ack);
 }

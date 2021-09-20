@@ -13,7 +13,9 @@ void sigintHandler(int sig_no) {
 }
 
 TradeServer::TradeServer(char* port, const std::string& outputfile="") 
-  : logger_(outputfile), marketdata_dispatcher_(cq_.get(), &market_data_service_) {
+  : logger_(outputfile)
+  , marketdata_dispatcher_(cq_.get(), &market_data_service_)
+  , ordermanager_(&marketdata_dispatcher_) {
     std::string server_address("127.0.0.1:" + std::string(port));
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());

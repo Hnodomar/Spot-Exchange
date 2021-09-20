@@ -46,9 +46,9 @@ private:
     struct ::sigaction disposition_;
     logging::Logger logger_;
     std::mutex taglist_mutex_;
-    tradeorder::OrderBookManager ordermanager_;
-    rpc::MarketDataDispatcher marketdata_dispatcher_;
     std::vector<std::thread> threadpool_;
+    rpc::MarketDataDispatcher marketdata_dispatcher_;
+    tradeorder::OrderBookManager ordermanager_;
     static std::unique_ptr<grpc::Server> trade_server_;
     static std::unique_ptr<grpc::ServerCompletionQueue> cq_;
     static orderentry::OrderEntryService::AsyncService order_entry_service_;

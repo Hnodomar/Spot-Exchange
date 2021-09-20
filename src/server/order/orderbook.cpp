@@ -5,21 +5,27 @@
 using namespace server::tradeorder;
 
 #ifndef TEST_BUILD
-thread_local OEResponseType orderfill_ack;
+thread_local orderentry::OrderEntryResponse OrderBook::orderfill_ack;
+thread_local orderentry::MarketDataResponse OrderBook::orderfill_data;
+thread_local orderentry::MarketDataResponse OrderBook::neworder_data;
+thread_local orderentry::MarketDataResponse OrderBook::modorder_data;
+thread_local orderentry::MarketDataResponse OrderBook::cancelorder_data;
 #endif
 
-OrderBook::OrderBook(BidMatcher bidmatcher, AskMatcher askmatcher)
-    : MatchBids(bidmatcher), MatchAsks(askmatcher) 
+OrderBook::OrderBook(rpc::MarketDataDispatcher* md_dispatch, BidMatcher bidmatcher, AskMatcher askmatcher)
+    : MatchBids(bidmatcher), MatchAsks(askmatcher), md_dispatch_(md_dispatch) 
 {}
 
 OrderBook::OrderBook(const OrderBook& orderbook) {
     MatchBids = orderbook.getBidMatcher();
     MatchAsks = orderbook.getAskMatcher();
+    md_dispatch_ = orderbook.getMDDispatcher();
 }
 
 OrderBook::OrderBook() {
     MatchBids = &server::matching::FIFOMatch<bidbook>;
     MatchAsks = &server::matching::FIFOMatch<askbook>;
+    md_dispatch_ = nullptr;
 }
 
 const std::array<OrderBook::AddOrderFn, 2> OrderBook::add_order{
@@ -88,7 +94,9 @@ void OrderBook::communicateMatchResults(MatchResult& match_result, const ::trade
         common->set_user_id(order.getUserID());
         const_cast<OrderEntryStreamConnection*>(
             fill.connection
-        )->queueWrite(&orderfill_ack);
+        )->writeToClient(&orderfill_ack);
+        *orderfill_data.mutable_fill() = std::move(orderfill_ack.fill());
+        md_dispatch_->writeMarketData(&orderfill_data);
     }
     #endif
 }
@@ -97,48 +105,20 @@ void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
     using namespace info;
     auto itr = limitorders_.find(modify_order.order_id);
     if (itr == limitorders_.end()) {
-        #ifndef TEST_BUILD
-        modify_order.connection->sendRejection(
-            static_cast<Rejection>(ORDER_NOT_FOUND),
-            modify_order.user_id,
-            modify_order.order_id,
-            modify_order.ticker
-        );
-        #endif
+        sendRejection(static_cast<Rejection>(ORDER_NOT_FOUND), modify_order);
         return;
     }
     auto& limit = itr->second;
     if (limit.order.isBuySide() != modify_order.is_buy_side) {
-        #ifndef TEST_BUILD
-        modify_order.connection->sendRejection(
-            static_cast<Rejection>(MODIFY_WRONG_SIDE),
-            modify_order.user_id,
-            modify_order.order_id,
-            modify_order.ticker
-        );
-        #endif
+        sendRejection(static_cast<Rejection>(MODIFY_WRONG_SIDE), modify_order);
         return;
     }
     if (itr->second.order.getUserID() != modify_order.user_id) {
-        #ifndef TEST_BUILD
-        modify_order.connection->sendRejection(
-            static_cast<Rejection>(WRONG_USER_ID),
-            modify_order.user_id,
-            modify_order.order_id,
-            modify_order.ticker
-        );
-        #endif
+        sendRejection(static_cast<Rejection>(WRONG_USER_ID), modify_order);
         return;
     }
     if (modifyOrderTrivial(modify_order, limit.order)) {
-        #ifndef TEST_BUILD
-        modify_order.connection->sendRejection(
-            static_cast<Rejection>(MODIFICATION_TRIVIAL),
-            modify_order.user_id,
-            modify_order.order_id,
-            modify_order.ticker
-        );
-        #endif
+        sendRejection(static_cast<Rejection>(MODIFICATION_TRIVIAL), modify_order);
         return;
     }
     if (modify_order.price == limit.order.getPrice()) {
@@ -146,6 +126,7 @@ void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
             limit.order.increaseQty(modify_order.quantity + limit.order.getCurrQty());
         else
             limit.order.decreaseQty(limit.order.getCurrQty() - modify_order.quantity);
+        sendOrderModifiedToDispatcher(modify_order);
         return;
     }
     else {
@@ -158,25 +139,11 @@ void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
 void OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
     auto itr = limitorders_.find(cancel_order.order_id);
     if (itr == limitorders_.end()) {
-        #ifndef TEST_BUILD
-        cancel_order.connection->sendRejection(
-            static_cast<Rejection>(ORDER_NOT_FOUND),
-            cancel_order.user_id,
-            cancel_order.order_id,
-            cancel_order.ticker
-        );
-        #endif
+        sendRejection(static_cast<Rejection>(ORDER_NOT_FOUND), cancel_order);
         return;
     }
     if (itr->second.order.getUserID() != cancel_order.user_id) {
-        #ifndef TEST_BUILD
-        cancel_order.connection->sendRejection(
-            static_cast<Rejection>(WRONG_USER_ID),
-            cancel_order.user_id,
-            cancel_order.order_id,
-            cancel_order.ticker
-        );
-        #endif
+        sendRejection(static_cast<Rejection>(WRONG_USER_ID), cancel_order);
         return;
     }
     Limit& limit = itr->second;
@@ -201,6 +168,38 @@ void OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
             asks_.erase(itr->second.order.getPrice());
     }
     limitorders_.erase(itr);
+    sendOrderCancelledToDispatcher(cancel_order);
+}
+
+void OrderBook::sendOrderAddedToDispatcher(const ::tradeorder::Order& order) {
+    #ifndef TEST_BUILD
+    auto add_data = OrderBook::neworder_data.mutable_add();
+    add_data->set_order_id(order.getOrderID());
+    add_data->set_ticker(order.getTicker());
+    add_data->set_price(order.getPrice());
+    add_data->set_quantity(order.getCurrQty());
+    add_data->set_is_buy_side(order.isBuySide());
+    add_data->set_timestamp(util::getUnixTimestamp());
+    md_dispatch_->writeMarketData(&OrderBook::neworder_data);
+    #endif
+}
+
+void OrderBook::sendOrderCancelledToDispatcher(const info::CancelOrder& cancel_order) {
+    #ifndef TEST_BUILD
+    auto cancel_data = OrderBook::cancelorder_data.mutable_cancel();
+    cancel_data->set_order_id(cancel_order.order_id);
+    cancel_data->set_timestamp(util::getUnixTimestamp());
+    md_dispatch_->writeMarketData(&OrderBook::cancelorder_data);
+    #endif
+}
+
+void OrderBook::sendOrderModifiedToDispatcher(const info::ModifyOrder& modify_order) {
+    #ifndef TEST_BUILD
+    auto modify_data = OrderBook::modorder_data.mutable_mod();
+    modify_data->set_order_id(modify_order.order_id);
+    modify_data->set_quantity(modify_order.quantity);
+    md_dispatch_->writeMarketData(&OrderBook::modorder_data);
+    #endif
 }
 
 bool OrderBook::modifyOrderTrivial(const info::ModifyOrder& modify_order, const ::tradeorder::Order& order) {

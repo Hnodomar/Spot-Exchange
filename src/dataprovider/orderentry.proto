@@ -14,17 +14,38 @@ message InitiateMarketDataStreamRequest {}
 
 message MarketDataResponse {
     oneof OrderEntryType {
-        NewOrder new_order = 1;
-        ModifyOrder modify_order = 2;
-        CancelOrder cancel_order = 3;
+        OrderAdded add = 1;
+        OrderModified mod = 2;
+        OrderCancelled cancel = 3;
         OrderEntryFill fill = 4;
         Notification notification = 5;
     }
 }
 
+message OrderCancelled {
+    uint64 timestamp = 1;
+    uint64 order_id = 2;
+}
+
+message OrderAdded {
+    uint64 timestamp = 1;
+    uint64 order_id = 2;
+    uint64 ticker = 3;
+    uint64 price = 4;
+    uint32 quantity = 5;
+    bool is_buy_side = 6;
+}
+
+message OrderModified {
+    uint64 timestamp = 1;
+    uint64 order_id = 2;
+    uint32 quantity = 3;
+}
+
 // message for market hours open/close etc
 message Notification {
-    uint32 flag = 1;
+    uint64 timestamp = 1;
+    uint32 flag = 2;
 }
 
 message OrderEntryRequest {
@@ -79,23 +100,17 @@ message OrderStatusCommon {
 
 message NewOrderStatus {
     int64 timestamp = 1;
-    OrderStatusCommon status_common = 2;
-    uint32 quantity = 3;
-    bool is_buy_side = 4;
-    uint64 price = 5;
+    NewOrder new_order = 2;
 }
 
 message ModifyOrderStatus {
     int64 timestamp = 1;
-    OrderStatusCommon status_common = 2;
-    uint32 quantity = 3;
-    bool is_buy_side = 4;
-    uint64 price = 5;
+    ModifyOrder modify_order = 2;
 }
 
 message CancelOrderStatus {
     int64 timestamp = 1;
-    OrderStatusCommon status_common = 2;
+    OrderCommon status_common = 2;
 }
 
 message OrderEntryRejection {
