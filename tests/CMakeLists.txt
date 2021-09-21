@@ -20,7 +20,7 @@ add_executable(orderbook_test
     ${PROJECT_SOURCE_DIR}/src/server/matching/fifomatching.cpp
 )
 target_link_libraries(orderbook_test PRIVATE Catch2::Catch2)
-target_include_directories(orderbook_test PRIVATE ${server_inc})
+target_include_directories(orderbook_test PRIVATE ${tradeserver_inc})
 target_compile_definitions(orderbook_test PRIVATE -DTEST_BUILD)
 
 include(CTest)

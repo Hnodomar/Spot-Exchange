@@ -77,15 +77,14 @@ target_link_libraries(oe_grpc_proto
     ${_PROTOBUF_LIBPROTOBUF}
 )
 
-
-file(GLOB server_src 
+file(GLOB tradeserver_src 
     ${PROJECT_SOURCE_DIR}/src/server/*.cpp
     ${PROJECT_SOURCE_DIR}/src/server/matching/*.cpp
     ${PROJECT_SOURCE_DIR}/src/server/order/*.cpp
     ${PROJECT_SOURCE_DIR}/src/server/rpc/*.cpp
 )
 
-file(GLOB server_inc
+file(GLOB tradeserver_inc
     ${PROJECT_SOURCE_DIR}/include/server
     ${PROJECT_SOURCE_DIR}/include/server/matching
     ${PROJECT_SOURCE_DIR}/include/server/order
@@ -94,35 +93,36 @@ file(GLOB server_inc
     ${PROJECT_SOURCE_DIR}/include/server/rpc
 )
 
-file(GLOB client_src
+file(GLOB tradeclient_src
     ${PROJECT_SOURCE_DIR}/src/client/*.cpp
 )
 
-file(GLOB client_inc
+file(GLOB tradeclient_inc
     ${PROJECT_SOURCE_DIR}/include/client
     ${PROJECT_SOURCE_DIR}/include/info
     ${PROJECT_SOURCE_DIR}/include/util
 )
 
-add_executable(tradeserver ${server_src})
-target_include_directories(tradeserver PUBLIC ${server_inc})
-target_link_libraries(tradeserver 
+file(GLOB dataplatform_src
+    ${PROJECT_SOURCE_DIR}/src/dataprovider/*.cpp
+)
+
+file(GLOB dataplatform_inc
+    ${PROJECT_SOURCE_DIR}/include/dataprovider
+)
+
+foreach(_target
+    tradeserver tradeclient dataplatform)
+    add_executable(${_target} "${${_target}_src}")
+    target_include_directories(${_target} PUBLIC "${${_target}_inc}")
+    target_link_libraries(${_target}
     ${Boost_LIBRARIES} 
     oe_grpc_proto
     ${_REFLECTION}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF}
-)
-
-add_executable(tradeclient ${client_src})
-target_include_directories(tradeclient PUBLIC ${client_inc})
-target_link_libraries(tradeclient
-    ${Boost_LIBRARIES}
-    oe_grpc_proto
-    ${_REFLECTION}
-    ${_GRPC_GRPCPP}
-    ${_PROTOBUF_LIBPROTOBUF}
-)
+    )
+endforeach()
 
 enable_testing()
 add_subdirectory(tests)
