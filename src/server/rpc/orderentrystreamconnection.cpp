@@ -22,6 +22,7 @@ OEJobHandlers& job_handlers)
     sendResponseFromQueue_cb_ = [this](bool success){this->sendResponseFromQueue(success);};
     server_context_.AsyncNotifyWhenDone(&stream_cancellation_callback_); // to get notification when request cancelled
     asyncOpStarted();
+    std::cout << "got as far as constructor\n";
     service_->RequestOrderEntry(
         &server_context_,
         &grpc_responder_,
@@ -112,18 +113,12 @@ void OrderEntryStreamConnection::readOrderEntryCallback(bool success) {
 
 void OrderEntryStreamConnection::writeToClient(const OEResponseType* response) {
     std::lock_guard<std::mutex> lock(response_queue_mutex_);
-    (this->*write_fn_)(response);
-}
-
-void OrderEntryStreamConnection::responsePushBack(const OEResponseType* response) {
     response_queue_.push_back(*response);
-}
-
-void OrderEntryStreamConnection::sendResponse(const OEResponseType* response) {
-    response_queue_.push_back(*response);
-    asyncOpStarted();
-    grpc_responder_.Write(*response, &sendResponseFromQueue_cb_);
-    write_fn_ = &OrderEntryStreamConnection::responsePushBack;
+    if (!write_in_progress_) {
+        asyncOpStarted();
+        grpc_responder_.Write(*response, &sendResponseFromQueue_cb_);
+        write_in_progress_ = true;
+    }
 }
 
 void OrderEntryStreamConnection::sendResponseFromQueue(bool success) {
@@ -131,10 +126,11 @@ void OrderEntryStreamConnection::sendResponseFromQueue(bool success) {
     std::lock_guard<std::mutex> lock(response_queue_mutex_);
     response_queue_.pop_front();
     if (!response_queue_.empty() && success) {
+        asyncOpStarted();
         grpc_responder_.Write(response_queue_.front(), &sendResponseFromQueue_cb_);
     }
     else
-        write_fn_ = &OrderEntryStreamConnection::sendResponse;
+        write_in_progress_ = false;
 }
 
 void OrderEntryStreamConnection::processEntry() {
@@ -153,6 +149,7 @@ void OrderEntryStreamConnection::processEntry() {
         default:
             break;
     }
+    std::cout << "end of process entry" << std::endl;
 }
 
 void OrderEntryStreamConnection::processOrderEntry(const orderentry::NewOrder& new_order) {
@@ -182,7 +179,7 @@ const uint64_t orderid, const uint64_t ticker) {
     common_obj->set_order_id(orderid);
     common_obj->set_ticker(ticker);
     asyncOpStarted();
-    grpc_responder_.Write(rejection_ack, &null_callback_);
+    writeToClient(&rejection_ack);
 }
 
 void OrderEntryStreamConnection::processOrderEntry(const orderentry::ModifyOrder& modify_order) {
@@ -200,6 +197,7 @@ void OrderEntryStreamConnection::processOrderEntry(const orderentry::ModifyOrder
             order_common.ticker()
         )
     );
+    std::cout << "process order entry" << std::endl;
     modify_order_fn_(morder);
 }
 

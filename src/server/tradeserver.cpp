@@ -14,14 +14,15 @@ void sigintHandler(int sig_no) {
 
 TradeServer::TradeServer(char* port, const std::string& outputfile="") 
   : logger_(outputfile)
-  , marketdata_dispatcher_(cq_.get(), &market_data_service_)
-  , ordermanager_(&marketdata_dispatcher_) {
+  , marketdata_dispatcher_(nullptr, &market_data_service_)
+{
     std::string server_address("127.0.0.1:" + std::string(port));
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&order_entry_service_);
     builder.RegisterService(&market_data_service_);
     cq_ = builder.AddCompletionQueue();
+    marketdata_dispatcher_.setCQ(cq_.get());
     trade_server_ = builder.BuildAndStart();
     logger_.write("Server listening on " + server_address);
     disposition_.sa_handler = &sigintHandler;
@@ -47,7 +48,6 @@ void TradeServer::handleRemoteProcedureCalls() {
         bool ok;
         for (;;) {
             GPR_ASSERT(cq_->Next((void**)&callback, &ok));
-            std::cout << "callback process " << &callback << " \n";
             (*(callback))(ok);
         }
     };
@@ -73,7 +73,6 @@ OEJobHandlers TradeServer::job_handlers_ = {
 };
 
 void TradeServer::makeNewOrderEntryConnection() {
-    std::cout << "new connection\n";
     new OrderEntryStreamConnection(
         &order_entry_service_, cq_.get(), client_streams_, job_handlers_
     );

@@ -1,15 +1,15 @@
-#include "dataprovider.hpp"
+#include "dataplatform.hpp"
 
-using namespace dataprovider;
+using namespace dataplatform;
 
-DataProvider::DataProvider(std::shared_ptr<grpc::Channel> channel) 
+DataPlatform::DataPlatform(std::shared_ptr<grpc::Channel> channel) 
     : stub_(orderentry::MarketDataService::NewStub(channel))
     , socket_(io_context, udp::endpoint(udp::v4(), 9002))
 {}
 
-void DataProvider::initiateMarketDataStream() {
+void DataPlatform::initiateMarketDataStream() {
     acceptSubscriber();
-    std::thread([&](){io_context.run();});
+    std::thread acceptloop([this](){io_context.run();});
     std::unique_ptr<grpc::ClientReader<MDResponse>> market_data_reader(
         stub_->MarketData(&context_, MDRequest())
     );
@@ -33,9 +33,10 @@ void DataProvider::initiateMarketDataStream() {
             );
         }
     }
+    acceptloop.join();
 }
 
-void DataProvider::serialiseMarketData() {
+void DataPlatform::serialiseMarketData() {
     switch(market_data_.OrderEntryType_case()) {
         case type::kAdd:
             serialiseAddOrder();
@@ -57,7 +58,7 @@ void DataProvider::serialiseMarketData() {
     }
 }
 
-void DataProvider::serialiseAddOrder() {
+void DataPlatform::serialiseAddOrder() {
     char* temp_ptr = temp_buffer_.data();
     *(temp_ptr++) = add_data_len_;
     serialiseBytes(temp_ptr, market_data_.add().timestamp());
@@ -67,7 +68,7 @@ void DataProvider::serialiseAddOrder() {
     serialiseBytes(temp_ptr, market_data_.add().is_buy_side());
 }
 
-void DataProvider::serialiseModOrder() {
+void DataPlatform::serialiseModOrder() {
     char* temp_ptr = temp_buffer_.data();
     *(temp_ptr++) = mod_data_len_;
     serialiseBytes(temp_ptr, market_data_.mod().timestamp());
@@ -75,7 +76,7 @@ void DataProvider::serialiseModOrder() {
     serialiseBytes(temp_ptr, market_data_.mod().quantity());
 }
 
-void DataProvider::serialiseFill() {
+void DataPlatform::serialiseFill() {
     char* temp_ptr = temp_buffer_.data();
     *(temp_ptr++) = fill_data_len_;
     serialiseBytes(temp_ptr, market_data_.fill().timestamp());
@@ -85,28 +86,28 @@ void DataProvider::serialiseFill() {
     serialiseBytes(temp_ptr, market_data_.fill().fill_id());
 }
 
-void DataProvider::serialiseNotification() {
+void DataPlatform::serialiseNotification() {
     char* temp_ptr = temp_buffer_.data();
     *(temp_ptr++) = notification_len_;
     serialiseBytes(temp_ptr, market_data_.notification().timestamp());
     serialiseBytes(temp_ptr, market_data_.notification().flag());
 }
 
-void DataProvider::serialiseCancel() {
+void DataPlatform::serialiseCancel() {
     char* temp_ptr = temp_buffer_.data();
     *(temp_ptr++) = cancel_data_len_;
     serialiseBytes(temp_ptr, market_data_.cancel().timestamp());
     serialiseBytes(temp_ptr, market_data_.cancel().order_id());
 }
 
-void DataProvider::acceptSubscriber() {
+void DataPlatform::acceptSubscriber() {
     socket_.async_receive_from(
-        boost::asio::buffer(temp_buffer_),
+        boost::asio::buffer(conn_buffer_, 1),
         temp_remote_endpoint_,
-        [self(shared_from_this())](boost::system::error_code ec, std::size_t) {
+        [this](boost::system::error_code ec, std::size_t) {
             if (!ec) {
-                self->subscribers_.push_back(self->temp_remote_endpoint_);
-                self->acceptSubscriber();
+                this->subscribers_.push_back(this->temp_remote_endpoint_);
+                this->acceptSubscriber();
             }
         }
     );

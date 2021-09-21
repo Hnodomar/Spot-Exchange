@@ -18,11 +18,12 @@ public:
         grpc::ServerCompletionQueue* cq,
         orderentry::MarketDataService::AsyncService* market_data_service
     );
+    MarketDataDispatcher(const MarketDataDispatcher&) = default;
+    MarketDataDispatcher& operator=(MarketDataDispatcher& rhs) = default;
     bool initiateMarketDataDispatch();
     void writeMarketData(const MDResponseType* marketdata);
+    void setCQ(grpc::ServerCompletionQueue* cq) {cq_ = cq;}
 private:
-    void marketDataPushBack(const MDResponseType* marketdata);
-    void marketDataWrite(const MDResponseType* marketdata);
     void writeToMDPlatform(bool success);
     orderentry::MarketDataService::AsyncService* market_data_service_;
     grpc::ServerAsyncWriter<MDResponseType> market_data_writer_;
@@ -33,7 +34,7 @@ private:
     MDResponseType md_response_;
     MDRequestType md_request_;
     std::mutex mdmutex_;
-    void (rpc::MarketDataDispatcher::*write_fn_)(const MDResponseType*);
+    bool write_in_progress_ = false;
 };
 }
 

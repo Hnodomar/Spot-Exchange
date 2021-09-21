@@ -45,7 +45,7 @@ else (${Protobuf_FOUND})
     endif()
 endif (${Protobuf_FOUND})
 
-get_filename_component(oe_proto "src/dataprovider/orderentry.proto" ABSOLUTE)
+get_filename_component(oe_proto "src/dataplatform/orderentry.proto" ABSOLUTE)
 get_filename_component(oe_proto_path "${oe_proto}" PATH)
 
 set(oe_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/orderentry.pb.cc")
@@ -104,15 +104,14 @@ file(GLOB tradeclient_inc
 )
 
 file(GLOB dataplatform_src
-    ${PROJECT_SOURCE_DIR}/src/dataprovider/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/dataplatform/*.cpp
 )
 
 file(GLOB dataplatform_inc
-    ${PROJECT_SOURCE_DIR}/include/dataprovider
+    ${PROJECT_SOURCE_DIR}/include/dataplatform
 )
 
-foreach(_target
-    tradeserver tradeclient dataplatform)
+foreach(_target tradeserver tradeclient dataplatform)
     add_executable(${_target} "${${_target}_src}")
     target_include_directories(${_target} PUBLIC "${${_target}_inc}")
     target_link_libraries(${_target}

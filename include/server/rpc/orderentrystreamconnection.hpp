@@ -37,8 +37,6 @@ public:
         const uint64_t orderid, const uint64_t ticker);
     void onStreamCancelled(bool); // notification tag callback for stream termination
 private:
-    void responsePushBack(const OEResponseType* response);
-    void sendResponse(const OEResponseType* response);
     void sendResponseFromQueue(bool success);
     void initialiseOEConn(bool success);
     void verifyID(bool success);
@@ -70,7 +68,6 @@ private:
     TagProcessor stream_cancellation_callback_;
     TagProcessor null_callback_;
     TagProcessor sendResponseFromQueue_cb_;
-    void (OrderEntryStreamConnection::*write_fn_)(const OEResponseType*);
     std::function<void(tradeorder::Order&)> add_order_fn_;
     std::function<void(info::ModifyOrder&)> modify_order_fn_;
     std::function<void(info::CancelOrder&)> cancel_order_fn_;
@@ -84,7 +81,7 @@ private:
     std::atomic<uint64_t> current_async_ops_;
     bool server_stream_done_;
     bool on_streamcancelled_called_;
-    bool write_in_progress_;
+    bool write_in_progress_ = false;
 
     static thread_local OEResponseType neworder_ack; 
     static thread_local OEResponseType modorder_ack; 
@@ -98,6 +95,7 @@ inline void OrderEntryStreamConnection::handleOrderType(const OrderType& order) 
         return;
     }
     acknowledgeEntry(order);
+    std::cout << "end of ack entry" << std::endl;
     processOrderEntry(order);
 }
 

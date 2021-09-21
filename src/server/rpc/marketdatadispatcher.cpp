@@ -7,7 +7,6 @@ orderentry::MarketDataService::AsyncService* market_data_service)
     : market_data_service_(market_data_service)
     , market_data_writer_(&server_context_)
     , cq_(cq)
-    , write_fn_(&rpc::MarketDataDispatcher::marketDataWrite)
 {
     write_marketdata_ = [this](bool success) {
         this->writeToMDPlatform(success);
@@ -25,22 +24,19 @@ bool MarketDataDispatcher::initiateMarketDataDispatch() {
     );
     void* tag;
     bool ok;
+    std::cout << "Waiting for MDP grpc establishment..\n";
     GPR_ASSERT(cq_->Next(&tag, &ok));
+    std::cout << "Connected!\n";
     return ok;
 }
 
 void MarketDataDispatcher::writeMarketData(const MDResponseType* marketdata) {
     std::lock_guard<std::mutex> lock(mdmutex_);
-    (this->*write_fn_)(marketdata);
-}
-
-void MarketDataDispatcher::marketDataPushBack(const MDResponseType* marketdata) {
     market_data_queue_.push_back(*marketdata);
-}
-
-void MarketDataDispatcher::marketDataWrite(const MDResponseType* marketdata) {
-    market_data_writer_.Write(*marketdata, &write_marketdata_);
-    write_fn_ = &rpc::MarketDataDispatcher::marketDataPushBack;
+    if (!write_in_progress_) {
+        market_data_writer_.Write(*marketdata, &write_marketdata_);
+        write_in_progress_ = true;
+    }
 }
 
 void MarketDataDispatcher::writeToMDPlatform(bool success) {
@@ -49,6 +45,6 @@ void MarketDataDispatcher::writeToMDPlatform(bool success) {
     if (!market_data_queue_.empty() && success) {
         market_data_writer_.Write(market_data_queue_.front(), &write_marketdata_);
     }
-    else 
-        write_fn_ = &rpc::MarketDataDispatcher::marketDataWrite;
+    else
+        write_in_progress_ = false;
 }

@@ -6,10 +6,6 @@ using namespace server::tradeorder;
 std::unordered_map<ticker, OrderBook> OrderBookManager::orderbooks_;
 rpc::MarketDataDispatcher* OrderBookManager::marketdata_dispatcher_;
 
-OrderBookManager::OrderBookManager(rpc::MarketDataDispatcher* marketdata_dispatcher) {
-    OrderBookManager::marketdata_dispatcher_ = marketdata_dispatcher;
-}
-
 void OrderBookManager::addOrder(::tradeorder::Order& order) {
     auto itr = OrderBookManager::orderbooks_.find(order.getTicker());
     if (itr == orderbooks_.end()) {

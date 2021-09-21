@@ -11,7 +11,7 @@
 
 #include "orderentry.grpc.pb.h"
 
-namespace dataprovider {
+namespace dataplatform {
 using MDResponse = orderentry::MarketDataResponse;
 using MDRequest = orderentry::InitiateMarketDataStreamRequest;
 using type = orderentry::MarketDataResponse::OrderEntryTypeCase;
@@ -21,11 +21,11 @@ constexpr uint8_t mod_data_len_ = 20;
 constexpr uint8_t cancel_data_len_ = 16;
 constexpr uint8_t fill_data_len_ = 46;
 constexpr uint8_t notification_len_ = 1;
-class DataProvider : public std::enable_shared_from_this<DataProvider> {
+class DataPlatform : public std::enable_shared_from_this<DataPlatform> {
 public:
-    DataProvider(std::shared_ptr<grpc::Channel> channel);
-private:
+    DataPlatform(std::shared_ptr<grpc::Channel> channel);
     void initiateMarketDataStream();
+private:
     void acceptSubscriber();
     void serialiseMarketData();
     template<typename Data>
@@ -43,10 +43,11 @@ private:
     udp::socket socket_;
     udp::endpoint temp_remote_endpoint_;
     std::array<char, 255> temp_buffer_;
+    std::array<char, 1> conn_buffer_;
     std::vector<udp::endpoint> subscribers_;
 };
 template<typename Data>
-void DataProvider::serialiseBytes(char*& ptr, Data data) {            
+void DataPlatform::serialiseBytes(char*& ptr, Data data) {            
     std::memcpy(ptr, &data, sizeof(data));
     ptr += sizeof(data);
 
