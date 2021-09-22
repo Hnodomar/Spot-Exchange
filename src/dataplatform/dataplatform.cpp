@@ -14,6 +14,8 @@ void DataPlatform::initiateMarketDataStream() {
         stub_->MarketData(&context_, MDRequest())
     );
     while (market_data_reader->Read(&market_data_)) {
+        std::cout << "got market data" << std::endl;
+        std::cout << market_data_.add().quantity() << std::endl;
         serialiseMarketData();
         for (const auto& subscriber : subscribers_) {
             socket_.async_send_to(
@@ -106,6 +108,7 @@ void DataPlatform::acceptSubscriber() {
         temp_remote_endpoint_,
         [this](boost::system::error_code ec, std::size_t) {
             if (!ec) {
+                std::cout << "got subscriber" << std::endl;
                 this->subscribers_.push_back(this->temp_remote_endpoint_);
                 this->acceptSubscriber();
             }

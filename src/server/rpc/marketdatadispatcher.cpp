@@ -32,6 +32,7 @@ bool MarketDataDispatcher::initiateMarketDataDispatch() {
 
 void MarketDataDispatcher::writeMarketData(const MDResponseType* marketdata) {
     std::lock_guard<std::mutex> lock(mdmutex_);
+    std::cout << "sending market data" << std::endl;
     market_data_queue_.push_back(*marketdata);
     if (!write_in_progress_) {
         market_data_writer_.Write(*marketdata, &write_marketdata_);

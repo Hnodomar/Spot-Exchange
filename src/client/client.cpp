@@ -43,23 +43,19 @@ void TradingClient::subscribeToDataPlatform(const char* dp_hostname, const char*
         udp::v4(), dp_hostname, dp_port
     );
     marketdata_platform_ = *endpoints.begin();
-    socket_.async_connect(marketdata_platform_, 
-        [this](boost::system::error_code ec) {
-            if (!ec) {
-                std::cout << "successfully connected!\n";
-                readMarketData();
-            }
-        }
-    );
+    std::array<char, 1> conn_req = {0};
+    socket_.send_to(boost::asio::buffer(conn_req), marketdata_platform_);   
+    readMarketData();
     threads_.emplace_back(([&](){io_context_.run();}));
 }
 
 void TradingClient::readMarketData() {
-    socket_.async_receive(
+    socket_.async_receive_from(
         boost::asio::buffer(buffer_, 255),
+        marketdata_platform_,
         [this](boost::system::error_code ec, std::size_t){
             if (!ec) {
-                // update orderbooks etc
+                std::cout << "got marketdata!" << std::endl;
             }
             readMarketData();
         }
