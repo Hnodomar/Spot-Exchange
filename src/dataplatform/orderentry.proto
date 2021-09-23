@@ -92,12 +92,6 @@ message OrderEntryResponse {
     }
 }
 
-message OrderStatusCommon {
-    uint64 order_id = 1;
-    uint64 ticker = 2;
-    uint64 user_id = 3;
-}
-
 message NewOrderStatus {
     int64 timestamp = 1;
     NewOrder new_order = 2;
@@ -136,7 +130,7 @@ message OrderEntryFill {
         prorata = 3;
     }
     int64 timestamp = 1;
-    OrderStatusCommon status_common = 2;
+    OrderCommon status_common = 2;
     bool complete_fill = 3;
     uint32 fill_quantity = 4;
     uint64 fill_id = 5;

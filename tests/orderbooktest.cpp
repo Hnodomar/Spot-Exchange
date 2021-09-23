@@ -10,7 +10,7 @@ class OrderEntryStreamConnection {}; // test class
 using Conn = OrderEntryStreamConnection;
 
 TEST_CASE("OrderBook Operations") {
-    OrderBookManager test_manager;
+    OrderBookManager test_manager(nullptr);
     OrderEntryStreamConnection connobj;
     OrderEntryStreamConnection* conn = &connobj;
     SECTION("Add Order") {

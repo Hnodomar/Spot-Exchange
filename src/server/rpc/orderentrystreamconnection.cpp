@@ -22,7 +22,6 @@ OEJobHandlers& job_handlers)
     sendResponseFromQueue_cb_ = [this](bool success){this->sendResponseFromQueue(success);};
     server_context_.AsyncNotifyWhenDone(&stream_cancellation_callback_); // to get notification when request cancelled
     asyncOpStarted();
-    std::cout << "got as far as constructor\n";
     service_->RequestOrderEntry(
         &server_context_,
         &grpc_responder_,
@@ -138,6 +137,7 @@ void OrderEntryStreamConnection::processEntry() {
     using type = OERequestType::OrderEntryTypeCase;
     switch(order_type) {
         case type::kNewOrder:
+            oe_request_.mutable_new_order()->mutable_order_common()->set_order_id(++orderid_generator_);
             handleOrderType(oe_request_.new_order());
             break;
         case type::kModifyOrder:
@@ -149,12 +149,10 @@ void OrderEntryStreamConnection::processEntry() {
         default:
             break;
     }
-    std::cout << "end of process entry" << std::endl;
 }
 
 void OrderEntryStreamConnection::processOrderEntry(const orderentry::NewOrder& new_order) {
     using namespace tradeorder;
-    asyncOpFinished();
     const auto& order_common = new_order.order_common();
     Order order(
         new_order.is_buy_side(),
@@ -162,7 +160,7 @@ void OrderEntryStreamConnection::processOrderEntry(const orderentry::NewOrder& n
         new_order.price(),
         new_order.quantity(),
         info::OrderCommon(
-            ++orderid_generator_,
+            order_common.order_id(),
             order_common.user_id(),
             order_common.ticker()
         )
@@ -184,7 +182,6 @@ const uint64_t orderid, const uint64_t ticker) {
 
 void OrderEntryStreamConnection::processOrderEntry(const orderentry::ModifyOrder& modify_order) {
     using namespace info;
-    asyncOpFinished();
     const auto& order_common = modify_order.order_common();
     info::ModifyOrder morder(
         modify_order.is_buy_side(),
@@ -203,7 +200,6 @@ void OrderEntryStreamConnection::processOrderEntry(const orderentry::ModifyOrder
 
 void OrderEntryStreamConnection::processOrderEntry(const orderentry::CancelOrder& cancel_order) {
     using namespace info;
-    asyncOpFinished();
     auto order_common = cancel_order.order_common();
     info::CancelOrder corder(
         order_common.order_id(),

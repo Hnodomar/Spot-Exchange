@@ -16,6 +16,7 @@ namespace rpc {class MarketDataDispatcher;}
 #include "fifomatching.hpp"
 #include "order.hpp"
 #include "limit.hpp"
+#include <iostream>
 
 static constexpr uint8_t UNKNOWN = 0;
 static constexpr uint8_t ORDER_NOT_FOUND = 1;
@@ -146,6 +147,7 @@ inline void OrderBook::addOrder<Side::Buy>(::tradeorder::Order& order) {
         communicateMatchResults(match_result, order);
         return;
     }
+    std::cout << "crashing" << std::endl;
     placeOrderInBidBook(order);
     sendOrderAddedToDispatcher(order);
 }
@@ -171,6 +173,7 @@ inline void OrderBook::addOrder<Side::Sell>(::tradeorder::Order& order) {
         communicateMatchResults(match_result, order);
         return;
     }
+    std::cout << "crashing" << std::endl;
     placeOrderInAskBook(order);
     sendOrderAddedToDispatcher(order);
 }

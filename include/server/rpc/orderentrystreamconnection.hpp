@@ -95,7 +95,6 @@ inline void OrderEntryStreamConnection::handleOrderType(const OrderType& order) 
         return;
     }
     acknowledgeEntry(order);
-    std::cout << "end of ack entry" << std::endl;
     processOrderEntry(order);
 }
 

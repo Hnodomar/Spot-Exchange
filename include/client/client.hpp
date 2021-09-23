@@ -15,15 +15,25 @@
 #include "order.hpp"
 #include "util.hpp"
 #include "orderentry.grpc.pb.h"
+#include "marketdatatypes.hpp"
+#include "clientfeedhandler.hpp"
+#include "clientorderbook.hpp"
 
 namespace client {
-
+constexpr uint8_t HEADER_LEN = 2;
 using udp = boost::asio::ip::udp;
 using order_id = uint64_t;
 using OERequest = orderentry::OrderEntryRequest;
 using OEResponse = orderentry::OrderEntryResponse;
+using NewOrderAck = orderentry::NewOrderStatus;
+using ModOrderAck = orderentry::ModifyOrderStatus;
+using CancelOrderAck = orderentry::CancelOrderStatus;
+using FillAck = orderentry::OrderEntryFill;
+using RejectAck = orderentry::OrderEntryRejection;
 using AckType = OEResponse::OrderStatusTypeCase;
 using RespType = OEResponse::ResponseTypeCase;
+using RejectType = orderentry::OrderEntryRejection::RejectionReason;
+using Common = orderentry::OrderCommon;
 
 class TradingClient : std::enable_shared_from_this<TradingClient> {
 public:
@@ -32,9 +42,15 @@ public:
     void startOrderEntry();
 private:
     void interpretResponseType(OEResponse& oe_response);
-    void makeNewOrderRequest(OERequest& request);
     void subscribeToDataPlatform(const char* hostname, const char* port);
     void readMarketData();
+    void processMarketData();
+    void processAddOrderData();
+    void processModifyOrderData();
+    void processCancelOrderData();
+    void processFillOrderData();
+    bool userEnteredCommand(const std::string& command);
+    void processNotificationData();
     bool constructNewOrderRequest(OERequest& request, const std::string& input);
     bool constructModifyOrderRequest(OERequest& request, const std::string& input);
     bool constructCancelOrderRequest(OERequest& request, const std::string& input);
@@ -43,6 +59,15 @@ private:
     bool getUserInput(OERequest& request);
     template<typename OrderType>
     bool setSide(OrderType& ordertype, char side);
+    void interpretAck(const NewOrderAck& new_ack) const;
+    void interpretAck(const ModOrderAck& mod_ack) const;
+    void interpretAck(const CancelOrderAck& cancel_ack) const;
+    void interpretAck(const FillAck& fill_ack) const;
+    void interpretAck(const RejectAck& reject_ack) const;
+    std::string rejectionToString(const RejectType rejection) const;
+    void printCommon(int64_t timestamp, const Common& common) const;
+    void printCommon(const Common& common) const;
+    void printTimestamp(int64_t timestamp) const;
 
     grpc::ClientContext context_;
     boost::asio::io_context io_context_;
@@ -54,6 +79,8 @@ private:
     udp::socket socket_;
     udp::resolver resolver_;
     udp::endpoint marketdata_platform_;
+    ClientFeedHandler feedhandler_;
+    ClientOrderBook* subscription_ = nullptr;
     std::vector<std::thread> threads_;
     std::vector<std::string> addorder_fields_ = {
         "-side ", "-price ", "-quantity ", "-ticker ",
@@ -66,7 +93,9 @@ private:
     std::vector<std::string> cancelorder_fields_ = {
         "-ticker ", "-userid ", "-orderid "
     };
-    char buffer_[255] = {0};
+    char buffer_[64] = {0};
+    uint8_t data_length_ = 0;
+    uint8_t packet_type_ = 0;
 };
 template<typename OrderType>
 inline bool TradingClient::setSide(OrderType& ordertype, char side) {

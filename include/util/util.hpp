@@ -25,6 +25,22 @@ static inline uint64_t convertStrToEightBytes(const std::string& input) {
     strncpy(arr, input.data(), len);
     return *reinterpret_cast<uint64_t*>(arr);
 }
+static inline std::string convertEightBytesToString(const uint64_t bytes) {
+    char arr[8];
+    std::memcpy(arr, &bytes, 8);
+    return std::string(arr);
+}
+
+static inline std::string getTimeStringFromTimestamp(int64_t timestamp) {
+    int64_t one_billion = 1000000000;
+    int64_t seconds = timestamp / one_billion;
+    int64_t minutes = seconds / 60;
+    int64_t hours = minutes / 60;
+    seconds = seconds % 60;
+    minutes = minutes % 60;
+    return std::to_string(hours) + ":" + std::to_string(minutes)
+        + ":" + std::to_string(seconds);
+}
 }
 
 #endif

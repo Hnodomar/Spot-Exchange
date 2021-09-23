@@ -74,15 +74,18 @@ inline void OrderBook::placeOrderInAskBook(::tradeorder::Order& order) {
 }
 
 inline bool OrderBook::possibleMatches(const askbook& book, const ::tradeorder::Order& order) const {
-    return book.begin()->first <= order.getPrice();
+    std::cout << "crashing" << std::endl;
+    return book.begin()->first <= order.getPrice() && !book.empty();
 }
 
 inline bool OrderBook::possibleMatches(const bidbook& book, const ::tradeorder::Order& order) const {
-    return book.begin()->first >= order.getPrice();
+    std::cout << "crashing" << std::endl;
+    return book.begin()->first >= order.getPrice() && !book.empty();
 }
 
 void OrderBook::communicateMatchResults(MatchResult& match_result, const ::tradeorder::Order& order) const {
     #ifndef TEST_BUILD
+    std::cout << "Communicating Match Results.." << std::endl;
     for (const auto& fill : match_result.getFills()) {
         auto fill_ack = orderfill_ack.mutable_fill();
         fill_ack->set_timestamp(fill.timestamp);
@@ -98,6 +101,7 @@ void OrderBook::communicateMatchResults(MatchResult& match_result, const ::trade
         *orderfill_data.mutable_fill() = std::move(orderfill_ack.fill());
         md_dispatch_->writeMarketData(&orderfill_data);
     }
+    std::cout << "Finished Communicating Match Results" << std::endl;
     #endif
 }
 

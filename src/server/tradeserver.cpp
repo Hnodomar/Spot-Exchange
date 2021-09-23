@@ -15,6 +15,7 @@ void sigintHandler(int sig_no) {
 TradeServer::TradeServer(char* port, const std::string& outputfile="") 
   : logger_(outputfile)
   , marketdata_dispatcher_(nullptr, &market_data_service_)
+  , ordermanager_(&marketdata_dispatcher_)
 {
     std::string server_address("127.0.0.1:" + std::string(port));
     grpc::ServerBuilder builder;
@@ -29,6 +30,7 @@ TradeServer::TradeServer(char* port, const std::string& outputfile="")
     sigemptyset(&disposition_.sa_mask);
     disposition_.sa_flags = 0;
     sigaction(SIGINT, &disposition_, NULL);
+    ordermanager_.createOrderBook("AAPL");
     handleRemoteProcedureCalls();
 }
 

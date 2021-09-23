@@ -20,7 +20,7 @@ using SubscribeResult = std::pair<bool, OrderBook&>;
 using order_id = uint64_t; using ticker = uint64_t;
 class OrderBookManager {
 public:
-    OrderBookManager() {}
+    OrderBookManager(rpc::MarketDataDispatcher* md_dispatcher);
     static void addOrder(::tradeorder::Order& order);
     static void modifyOrder(const info::ModifyOrder& modify_order);
     static void cancelOrder(const info::CancelOrder& cancel_order);
