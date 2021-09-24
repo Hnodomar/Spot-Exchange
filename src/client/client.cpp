@@ -17,6 +17,8 @@ void TradingClient::startOrderEntry() {
         grpc::ClientReaderWriter<OERequest, OEResponse>
     >oe_stream(stub_->OrderEntry(&context));
     std::thread oe_writer([this, oe_stream]() {
+        promptUserID();
+        printInfoBox();
         for(;;) {
             OERequest request;
             if (!getUserInput(request)) {
@@ -86,19 +88,45 @@ void TradingClient::processMarketData() {
 }
 
 void TradingClient::processAddOrderData() {
-    feedhandler_.addOrder(reinterpret_cast<AddOrderData*>(buffer_));
+    AddOrderData* add_order = reinterpret_cast<AddOrderData*>(buffer_ + HEADER_LEN);
+    feedhandler_.addOrder(add_order);
+    if (subscription_ != nullptr) {
+        if (subscription_->getTicker() == add_order->ticker) {
+            reprintInterface();
+        }
+    }
 }
 
 void TradingClient::processModifyOrderData() {
-    feedhandler_.modifyOrder(reinterpret_cast<ModOrderData*>(buffer_));
+    ModOrderData* mod_order = reinterpret_cast<ModOrderData*>(buffer_ + HEADER_LEN);
+    feedhandler_.modifyOrder(mod_order);
+    if (subscription_ != nullptr) {
+        auto tkr = feedhandler_.getOrderIDTicker(mod_order->order_id);
+        if (subscription_->getTicker() == tkr) {
+            reprintInterface();
+        }
+    }
 }
 
 void TradingClient::processCancelOrderData() {
-    feedhandler_.cancelOrder(reinterpret_cast<CancelOrderData*>(buffer_));
+    CancelOrderData* cancel_order = reinterpret_cast<CancelOrderData*>(buffer_ + HEADER_LEN);
+    feedhandler_.cancelOrder(cancel_order);
+    if (subscription_ != nullptr) {
+        auto tkr = feedhandler_.getOrderIDTicker(cancel_order->order_id);
+        if (subscription_->getTicker() == tkr) {
+            reprintInterface();
+        }
+    }
 }
 
 void TradingClient::processFillOrderData() {
-    feedhandler_.fillOrder(reinterpret_cast<FillOrderData*>(buffer_));
+    FillOrderData* fill = reinterpret_cast<FillOrderData*>(buffer_ + HEADER_LEN);
+    feedhandler_.fillOrder(fill);
+    if (subscription_ != nullptr) {
+        if (subscription_->getTicker() == fill->ticker) {
+            reprintInterface();
+        }
+    }
 }
 
 void TradingClient::processNotificationData() {
@@ -131,84 +159,162 @@ void TradingClient::interpretResponseType(OEResponse& oe_response) {
     }
 }
 
-void TradingClient::interpretAck(const NewOrderAck& new_ack) const {
+void TradingClient::reprintInterface() {
+    std::cout << "\033[2J\033[1;1H";
+    if (subscription_ != nullptr)
+        std::cout << *subscription_ << std::endl;
+    printInfoBox(false);
+    std::cout << ">";
+}
+
+void TradingClient::printInfoBox(bool clear_prev) {
+    if (clear_prev) {
+        for (int i = 0; i < prev_height_; ++i) {
+            std::cout << "\033[A" << "\33[2K";
+        }
+    }
+    auto width = util::getTerminalWidth();
+    auto height = util::getTerminalHeight();
+    height /= 5;
+    prev_height_ = height + 4;
+    std::cout << std::setfill('-') << std::setw(width - 2) << centered("INFO") << std::endl;
+    std::cout << std::setfill(' ') << "\n";
+    for (auto itr = info_feed_.rbegin(); itr != info_feed_.rbegin() + height; ++itr) {
+        std::cout << std::setw(width) << centered(*itr) << std::endl;
+    }
+    std::cout << std::setfill('-') << std::setw(width);
+    std::cout << "\n";
+    while (info_feed_.size() > 20)
+        info_feed_.erase(info_feed_.begin());
+}
+
+void TradingClient::promptUserID() {
+    if (userID_ == 0)
+        std::cout << "Please input user ID: " << std::endl;
+    else
+        std::cout << "User ID " << util::convertEightBytesToString(userID_) 
+            << " id taken. Please input new user ID: " << std::endl;
+    std::cout << ">";
+    std::string username;
+    getline(std::cin, username);
+    userID_ = util::convertStrToEightBytes(username);
+    removeUserInput();
+    std::cout << std::endl;
+}
+
+void TradingClient::interpretAck(const NewOrderAck& new_ack) {
     const auto& ord = new_ack.new_order();
-    std::cout << "Received new order acknowledgement:\n";
-    printCommon(new_ack.timestamp(), ord.order_common());
-    std::cout << " " << ord.price() << " " << ord.quantity() << " " << 
-        ord.is_buy_side() << std::endl;
+    std::string side = ord.is_buy_side() == 1 ? "BID" : "ASK";
+    std::string tkr = util::convertEightBytesToString(ord.order_common().ticker());
+    info_feed_.push_back(
+        timestampStr(new_ack.timestamp())
+        + "ADD " + side + " TO " + tkr + " "
+        + std::to_string(ord.quantity()) + " SHARES @ "
+        + "£" + std::to_string(ord.price())
+        + " ACKNOWLEDGED "
+        + "WITH ID " + std::to_string(ord.order_common().order_id())
+    );
+    printInfoBox();
 }
 
-void TradingClient::interpretAck(const ModOrderAck& mod_ack) const {
+void TradingClient::interpretAck(const ModOrderAck& mod_ack) {
     const auto& ord = mod_ack.modify_order();
-    std::cout << "Received modify order acknowledgement:\n";
-    printCommon(mod_ack.timestamp(), ord.order_common());
-    std::cout << " " << ord.price() << " " 
-        << ord.quantity() << " " << ord.is_buy_side() << std::endl;
+    std::string tkr = util::convertEightBytesToString(ord.order_common().ticker());
+    auto curr_ord = feedhandler_.getOrder(ord.order_common().order_id());
+    std::string side = ord.is_buy_side() == 1 ? "BID" : "ASK";
+    info_feed_.push_back(
+        timestampStr(mod_ack.timestamp())
+        + "MODIFY " + side + " IN " + tkr + " "
+        + "FROM" + std::to_string(curr_ord->quantity) + " SHARES "
+        + "TO" + std::to_string(ord.quantity()) + " SHARES @ £"
+        + std::to_string(ord.price()) + " ACKNOWLEDGED WITH ID "
+        + std::to_string(ord.order_common().order_id())
+    );
+    printInfoBox();
 }
 
-void TradingClient::interpretAck(const CancelOrderAck& cancel_ack) const {
-    std::cout << "Received cancel order acknowledgement:\n";
-    printCommon(cancel_ack.timestamp(), cancel_ack.status_common());
-    std::cout << std::endl;
+void TradingClient::interpretAck(const CancelOrderAck& cancel_ack) {
+    const auto& ord = cancel_ack.status_common();
+    auto curr_ord = feedhandler_.getOrder(ord.order_id());
+    std::string tkr = util::convertEightBytesToString(ord.ticker());
+    std::string side = curr_ord->is_buy_side == 1 ? "BID" : "ASK";
+    info_feed_.push_back(
+        timestampStr(cancel_ack.timestamp())
+        + "CANCEL " + side + " IN " + tkr + " "
+        + "ACKNOWLEDGED WITH ID "
+        + std::to_string(ord.order_id())
+    );
+    printInfoBox();
 }
 
-void TradingClient::interpretAck(const FillAck& fill_ack) const {
-    std::cout << "Order received fill:\n";
-    printCommon(fill_ack.timestamp(), fill_ack.status_common());
-    std::cout << " " << fill_ack.fill_quantity() << " " << fill_ack.fill_id()
-        << std::endl;
+void TradingClient::interpretAck(const FillAck& fill_ack) {
+    const auto& ord = fill_ack.status_common();
+    if (ord.user_id() == getUserID()) {
+        auto curr_ord = feedhandler_.getOrder(ord.order_id());
+        std::string side;
+        if (curr_ord != nullptr)
+            side = curr_ord->is_buy_side == 1 ? "BID" : "ASK";
+        std::string tkr = util::convertEightBytesToString(ord.ticker());
+        info_feed_.push_back(
+            timestampStr(fill_ack.timestamp())
+            + side + " ORDER " + std::to_string(ord.order_id())
+            + " IN " + tkr + " FILLED: " + std::to_string(fill_ack.fill_quantity())
+            + " / " + std::to_string(curr_ord->quantity)
+        );
+        printInfoBox();
+    }
 }
 
-void TradingClient::interpretAck(const RejectAck& reject_ack) const {
-    std::cout << "Order entry rejected:\n"
-        << "Reason: " << rejectionToString(reject_ack.rejection_response()) << " ";
-    printCommon(reject_ack.order_common());
-    std::cout << std::endl;
+void TradingClient::interpretAck(const RejectAck& reject_ack) {
+    info_feed_.push_back(
+        "ORDER ENTRY REJECTED! REASON: " 
+        + rejectionToString(reject_ack.rejection_response())
+    );
+    printInfoBox();
 }
 
-void TradingClient::printCommon(const Common& common) const {
-    std::cout << "Order ID: " << common.order_id()
-     << " User ID: " << util::convertEightBytesToString(common.user_id())
-     << " Ticker: " << util::convertEightBytesToString(common.ticker());
+std::string TradingClient::commonStr(const Common& common) {
+    return "ORDER: " + std::to_string(common.order_id()) + " TICKER: " 
+        + util::convertEightBytesToString(common.ticker());
 }
 
-void TradingClient::printCommon(int64_t timestamp, const Common& common) const {
-    printTimestamp(timestamp);
-    printCommon(common);
+std::string TradingClient::commonStr(int64_t timestamp, const Common& common) {
+    return timestampStr(timestamp) + commonStr(common);
 }
 
-void TradingClient::printTimestamp(int64_t timestamp) const {
-    std::cout << "[" << util::getTimeStringFromTimestamp(timestamp) << "] ";
+std::string TradingClient::timestampStr(int64_t timestamp) const {
+    return "[" + util::getTimeStringFromTimestamp(timestamp) + "] ";
 }
 
 std::string TradingClient::rejectionToString(const RejectType rejection) const {
     switch (rejection) {
         case RejectType::OrderEntryRejection_RejectionReason_unknown:
-            return "unknown";
+            return "UNKNOWN";
         case RejectType::OrderEntryRejection_RejectionReason_order_not_found:
-            return "order not found";
+            return "ORDER NOT FOUND";
         case RejectType::OrderEntryRejection_RejectionReason_order_id_already_present:
-            return "order id already present";
+            return "ORDER ID ALREADY PRESENT";
         case RejectType::OrderEntryRejection_RejectionReason_orderbook_not_found:
-            return "orderbook not found";
+            return "ORDERBOOK NOT FOUND";
         case RejectType::OrderEntryRejection_RejectionReason_ticker_not_found:
-            return "ticker not found";
+            return "TICKER NOT FOUND";
         case RejectType::OrderEntryRejection_RejectionReason_modify_wrong_side:
-            return "modify wrong side";
+            return "MODIFY WRONG SIDE";
         case RejectType::OrderEntryRejection_RejectionReason_modification_trivial:
-            return "modification trivial";
+            return "MODIFICATION TRIVIAL";
         case RejectType::OrderEntryRejection_RejectionReason_wrong_user_id:
-            return "wrong user id";
+            return "WRONG USER ID";
         default:
             return "";
     }
 }
 
 bool TradingClient::getUserInput(OERequest& request) {
-    std::cout << "Provide Input:" << std::endl;
     std::string input;
+    std::cout << "> ";
     std::getline(std::cin, input);
+    std::cout << std::endl;
+    removeUserInput();
     input += " ";
     if (userEnteredCommand(input)) {
         return false;
@@ -247,23 +353,29 @@ bool TradingClient::getUserInput(OERequest& request) {
 bool TradingClient::userEnteredCommand(const std::string& command) {
     if (command[0] != '/')
         return false;
-    auto cmd_end_pos = command.find(" ");
-    if (cmd_end_pos == std::string::npos)
-        return false;
-    auto cmd = command.substr(1, cmd_end_pos);
-    if (cmd == "subscribe") {
-        auto tkr_end_pos = command.find(" ", cmd_end_pos + 1);
-        if (tkr_end_pos == std::string::npos)
-            return true;
-        auto tkr = command.substr(cmd_end_pos + 1, tkr_end_pos);
-        subscription_ = feedhandler_.subscribe(util::convertStrToEightBytes(tkr));
+    auto args = split(command, ' ');
+    if (args[0] == "/subscribe") {
+        subscription_ = feedhandler_.subscribe(util::convertStrToEightBytes(args[1]));
+        if (subscription_ == nullptr)
+            std::cout << "Subscription failed!" << std::endl;
+        else
+            reprintInterface();
     }
-    else if (cmd == "help") {
+    else if (args[0] == "/help") {
 
     }
     else
         std::cout << "Invalid command" << std::endl;
     return true;
+}
+
+std::vector<std::string> TradingClient::split(const std::string& s, char delimiter) {
+    std::vector<std::string> out{};
+	std::stringstream ss {s};
+	std::string item;	
+	while (std::getline(ss, item, delimiter))
+			out.push_back(item);
+	return out;
 }
 
 bool TradingClient::constructNewOrderRequest(OERequest& request, const std::string& input) {
@@ -277,7 +389,7 @@ bool TradingClient::constructNewOrderRequest(OERequest& request, const std::stri
     neworder->set_price(std::stoi(values[1]));
     neworder->set_quantity(std::stoi(values[2]));
     common->set_ticker(util::convertStrToEightBytes(values[3]));
-    common->set_user_id(util::convertStrToEightBytes(values[4]));
+    common->set_user_id(userID_);
     common->set_order_id(0);
     return true;
 }
@@ -293,7 +405,7 @@ bool TradingClient::constructModifyOrderRequest(OERequest& request, const std::s
     modorder->set_price(std::stoi(values[1]));
     modorder->set_quantity(std::stoi(values[2]));
     common->set_ticker(util::convertStrToEightBytes(values[3]));
-    common->set_user_id(util::convertStrToEightBytes(values[4]));
+    common->set_user_id(userID_);
     common->set_order_id(std::stoi(values[5]));
     return true;
 }
@@ -305,7 +417,7 @@ bool TradingClient::constructCancelOrderRequest(OERequest& request, const std::s
     if (values.empty())
         return false;
     common->set_ticker(util::convertStrToEightBytes(values[0]));
-    common->set_user_id(util::convertStrToEightBytes(values[1]));
+    common->set_user_id(userID_);
     common->set_order_id(std::stoi(values[2]));
     return true;
 }

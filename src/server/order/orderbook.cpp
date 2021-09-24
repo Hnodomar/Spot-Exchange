@@ -74,12 +74,10 @@ inline void OrderBook::placeOrderInAskBook(::tradeorder::Order& order) {
 }
 
 inline bool OrderBook::possibleMatches(const askbook& book, const ::tradeorder::Order& order) const {
-    std::cout << "crashing" << std::endl;
     return book.begin()->first <= order.getPrice() && !book.empty();
 }
 
 inline bool OrderBook::possibleMatches(const bidbook& book, const ::tradeorder::Order& order) const {
-    std::cout << "crashing" << std::endl;
     return book.begin()->first >= order.getPrice() && !book.empty();
 }
 

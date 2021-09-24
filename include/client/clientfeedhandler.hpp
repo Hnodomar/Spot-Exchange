@@ -17,14 +17,14 @@ public:
     void addOrder(AddOrderData* new_order) {
         auto itr = tickers_.find(new_order->ticker);
         if (itr == tickers_.end()) {
-            orderbooks_.emplace_back(ClientOrderBook());
+            orderbooks_.emplace_back(ClientOrderBook(new_order->ticker));
             itr = tickers_.emplace(new_order->ticker, orderbooks_.size() - 1).first;
         }
         uint16_t book_id = itr->second;
         new_order->book_index = book_id;
         auto& book = orderbooks_[book_id];
         book.addToBook(new_order->is_buy_side, new_order->quantity, new_order->price);
-        orders_.emplace(new_order->order_id, std::move(*new_order));
+        orders_.emplace(new_order->order_id, *new_order);
     }
     void cancelOrder(CancelOrderData* cancel_order) {
         auto order_itr = orders_.find(cancel_order->order_id);
@@ -73,12 +73,24 @@ public:
         if (itr->second.quantity <= 0)
             orders_.erase(itr);
     }
+    Order* getOrder(uint64_t id) {
+        auto itr = orders_.find(id);
+        if (itr == orders_.end())
+            return nullptr;
+        return &itr->second;
+    }
     ClientOrderBook* subscribe(Ticker ticker) {
         auto itr = tickers_.find(ticker);
         if (itr == tickers_.end()) {
-
+            return nullptr;
         }
-        return orderbooks_[itr->second];
+        return &orderbooks_[itr->second];
+    }
+    uint64_t getOrderIDTicker(uint64_t order_id) const {
+        auto itr = orders_.find(order_id);
+        if (itr == orders_.end())
+            return 0;
+        return itr->second.ticker;
     }
 private:
     std::vector<ClientOrderBook> orderbooks_;

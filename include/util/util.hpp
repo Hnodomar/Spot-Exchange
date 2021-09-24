@@ -4,6 +4,9 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <cstdio>
+#include <unistd.h>
+#include <sys/ioctl.h>
 
 // misc utility functions
 namespace util {
@@ -38,9 +41,26 @@ static inline std::string getTimeStringFromTimestamp(int64_t timestamp) {
     int64_t hours = minutes / 60;
     seconds = seconds % 60;
     minutes = minutes % 60;
-    return std::to_string(hours) + ":" + std::to_string(minutes)
-        + ":" + std::to_string(seconds);
+    std::string minstr = std::to_string(minutes);
+    if (minutes < 10)
+        minstr.insert(0, 1, '0');
+    std::string secstr = std::to_string(seconds);
+    if (seconds < 10)
+        secstr.insert(0, 1, '0');
+    return std::to_string(hours) + ":" + minstr
+        + ":" + secstr;
 }
+static inline uint16_t getTerminalWidth() {
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    return w.ws_col;
+}
+
+static inline uint16_t getTerminalHeight() {
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    return w.ws_row;
+}   
 }
 
 #endif

@@ -147,7 +147,6 @@ inline void OrderBook::addOrder<Side::Buy>(::tradeorder::Order& order) {
         communicateMatchResults(match_result, order);
         return;
     }
-    std::cout << "crashing" << std::endl;
     placeOrderInBidBook(order);
     sendOrderAddedToDispatcher(order);
 }
@@ -173,7 +172,6 @@ inline void OrderBook::addOrder<Side::Sell>(::tradeorder::Order& order) {
         communicateMatchResults(match_result, order);
         return;
     }
-    std::cout << "crashing" << std::endl;
     placeOrderInAskBook(order);
     sendOrderAddedToDispatcher(order);
 }

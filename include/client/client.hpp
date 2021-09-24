@@ -4,13 +4,17 @@
 #include <grpc/grpc.h>
 #include <grpcpp/grpcpp.h>
 #include <boost/asio.hpp>
+#include <boost/function_output_iterator.hpp>
+#include <boost/lambda/lambda.hpp>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 #include <cstdint>
 #include <thread>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 
 #include "order.hpp"
 #include "util.hpp"
@@ -18,6 +22,7 @@
 #include "marketdatatypes.hpp"
 #include "clientfeedhandler.hpp"
 #include "clientorderbook.hpp"
+#include "centerformatting.hpp"
 
 namespace client {
 constexpr uint8_t HEADER_LEN = 2;
@@ -59,15 +64,21 @@ private:
     bool getUserInput(OERequest& request);
     template<typename OrderType>
     bool setSide(OrderType& ordertype, char side);
-    void interpretAck(const NewOrderAck& new_ack) const;
-    void interpretAck(const ModOrderAck& mod_ack) const;
-    void interpretAck(const CancelOrderAck& cancel_ack) const;
-    void interpretAck(const FillAck& fill_ack) const;
-    void interpretAck(const RejectAck& reject_ack) const;
+    void promptUserID();
+    void interpretAck(const NewOrderAck& new_ack);
+    void interpretAck(const ModOrderAck& mod_ack);
+    void interpretAck(const CancelOrderAck& cancel_ack);
+    void interpretAck(const FillAck& fill_ack);
+    void interpretAck(const RejectAck& reject_ack);
     std::string rejectionToString(const RejectType rejection) const;
-    void printCommon(int64_t timestamp, const Common& common) const;
-    void printCommon(const Common& common) const;
-    void printTimestamp(int64_t timestamp) const;
+    std::vector<std::string> split(const std::string& s, char delimiter);
+    std::string commonStr(int64_t timestamp, const Common& common);
+    std::string commonStr(const Common& common);
+    std::string timestampStr(int64_t timestamp) const;
+    uint64_t getUserID() const {return userID_;}
+    void printInfoBox(bool clear_prev = true);
+    void reprintInterface();
+    void removeUserInput() const {std::cout << "\033[A" << "\33[2K";}
 
     grpc::ClientContext context_;
     boost::asio::io_context io_context_;
@@ -82,20 +93,24 @@ private:
     ClientFeedHandler feedhandler_;
     ClientOrderBook* subscription_ = nullptr;
     std::vector<std::thread> threads_;
+    std::vector<std::string> info_feed_ = {
+        " ", " ", " ", " ", " "
+    };
     std::vector<std::string> addorder_fields_ = {
-        "-side ", "-price ", "-quantity ", "-ticker ",
-        "-userid "
+        "-side ", "-price ", "-quantity ", "-ticker "
     };
     std::vector<std::string> modorder_fields_ = {
         "-side ", "-price ", "-quantity ", "-ticker ",
-        "-userid ", "-orderid "
+        "-orderid "
     };
     std::vector<std::string> cancelorder_fields_ = {
-        "-ticker ", "-userid ", "-orderid "
+        "-ticker ", "-orderid "
     };
+    uint64_t userID_ = 0;
     char buffer_[64] = {0};
     uint8_t data_length_ = 0;
     uint8_t packet_type_ = 0;
+    uint8_t prev_height_ = 0;
 };
 template<typename OrderType>
 inline bool TradingClient::setSide(OrderType& ordertype, char side) {
