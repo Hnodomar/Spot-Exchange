@@ -22,6 +22,7 @@ void TradingClient::startOrderEntry() {
         for(;;) {
             OERequest request;
             if (!getUserInput(request)) {
+                removeUserInput();
                 continue;
             }
             oe_stream->Write(request);
@@ -164,7 +165,6 @@ void TradingClient::reprintInterface() {
     if (subscription_ != nullptr)
         std::cout << *subscription_ << std::endl;
     printInfoBox(false);
-    std::cout << ">";
 }
 
 void TradingClient::printInfoBox(bool clear_prev) {
@@ -176,19 +176,21 @@ void TradingClient::printInfoBox(bool clear_prev) {
     auto width = util::getTerminalWidth();
     auto height = util::getTerminalHeight();
     height /= 5;
-    prev_height_ = height + 4;
-    std::cout << std::setfill('-') << std::setw(width - 2) << centered("INFO") << std::endl;
-    std::cout << std::setfill(' ') << "\n";
-    for (auto itr = info_feed_.rbegin(); itr != info_feed_.rbegin() + height; ++itr) {
+    prev_height_ = height + 5;
+    std::string info_str(width, '-');
+    info_str.replace(info_str.length() / 2, 4, "INFO");
+    std::cout << info_str << std::endl;
+    for (auto itr = info_feed_.rbegin(); itr != info_feed_.rend() && itr != info_feed_.rbegin() + height; ++itr) {
         std::cout << std::setw(width) << centered(*itr) << std::endl;
     }
     std::cout << std::setfill('-') << std::setw(width);
-    std::cout << "\n";
+    std::cout << "\n" << std::setfill(' ');
     while (info_feed_.size() > 20)
         info_feed_.erase(info_feed_.begin());
 }
 
 void TradingClient::promptUserID() {
+    std::cout << "\033[2J\033[1;1H";
     if (userID_ == 0)
         std::cout << "Please input user ID: " << std::endl;
     else
@@ -199,7 +201,7 @@ void TradingClient::promptUserID() {
     getline(std::cin, username);
     userID_ = util::convertStrToEightBytes(username);
     removeUserInput();
-    std::cout << std::endl;
+    std::cout << "\033[2J\033[1;1H" << std::endl;
 }
 
 void TradingClient::interpretAck(const NewOrderAck& new_ack) {
@@ -311,7 +313,6 @@ std::string TradingClient::rejectionToString(const RejectType rejection) const {
 
 bool TradingClient::getUserInput(OERequest& request) {
     std::string input;
-    std::cout << "> ";
     std::getline(std::cin, input);
     std::cout << std::endl;
     removeUserInput();

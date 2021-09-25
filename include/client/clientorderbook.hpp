@@ -8,7 +8,6 @@
 #include <iomanip>
 
 #include "marketdatatypes.hpp"
-#include "centerformatting.hpp"
 
 namespace client {
 using price = uint64_t; using size = int64_t;
@@ -31,38 +30,48 @@ public:
     }
     friend std::ostream& operator<<(std::ostream& out, const ClientOrderBook& book) {
         using namespace std;
-        struct winsize w;
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-        out << std::setfill(' ') << std::setw(w.ws_col);
+        auto width = util::getTerminalWidth();
         auto tkr = util::convertEightBytesToString(book.ticker_);
+        out << setw(width);
+        string line(width, ' ');
+        size_t len = line.length();
+        string bidstr = "=== " + tkr + " BIDS ===";
+        string askstr = "=== " + tkr + " ASKS ===";
+        size_t bid_posn = (len / 2) - (0.20 * width);
+        size_t ask_posn = (len / 2) + (0.10 * width);
+        bid_posn += (bidstr.length() / 4);
+        ask_posn += (askstr.length() / 4);
+
+        line.replace(bid_posn, bidstr.length(), bidstr);
+        line.replace(ask_posn, askstr.length(), askstr);
+
+        bidstr = line.substr(0, ask_posn - 1);
+        askstr = line.substr(ask_posn);
+        out << "\033[32m" << "\033[1m" << bidstr << "\033[31m" << askstr << "\033[0m" << endl;
+        line = string(width, ' ');
+        --bid_posn;
+        --ask_posn;
+
+        int i = 0;
+        int adjustment = 0; // to ensure asks are properly aligned.. unsure how to solve original problem
         auto biditr = book.bids_.rbegin();
         auto askitr = book.asks_.begin();
-        int i = 0;
-        out << std::setw(w.ws_col);
-        std::string line(w.ws_col, ' ');
-        std::size_t len = line.length();
-        std::string bidstr = "=== " + tkr + " BIDS ===";
-        std::string askstr = "=== " + tkr + " ASKS ===";
-        std::size_t bid_posn = (len / 2) - (0.20 * w.ws_col);
-        std::size_t ask_posn = (len / 2) + (0.10 * w.ws_col);
-        line.insert(bid_posn, bidstr);
-        line.insert(ask_posn, askstr);
-        out << centered(line.substr(0, w.ws_col)) << std::endl;
-        line = std::string(w.ws_col, ' ');
-        bid_posn += bidstr.length() / 4;
-        ask_posn += askstr.length() / 4;
         while (i < 5) {
             if (biditr != book.bids_.rend()) {
-                line.insert(bid_posn, "£" + to_string(biditr->first) + ": " + to_string(biditr->second));
+                string entry = "£" + to_string(biditr->first) + ": " + to_string(biditr->second);
+                line.replace(bid_posn, entry.length() - 1, entry);
                 ++biditr;
+                adjustment = 0;
             }
+            else adjustment = -1;
             if (askitr != book.asks_.end()) {
-                line.insert(ask_posn, "£" + to_string(askitr->first) + ": " + to_string(askitr->second));
+                string entry = "£" + to_string(askitr->first) + ": " + to_string(askitr->second);
+                line.replace(ask_posn + adjustment, entry.length(), entry);
                 ++askitr;
             }
             ++i;
-            out << std::setw(w.ws_col) << line.substr(0, w.ws_col) << std::endl;
-            line = std::string(w.ws_col, ' ');
+            out << line << endl;
+            line = string(width, ' ');
         }
         return out;
     }
