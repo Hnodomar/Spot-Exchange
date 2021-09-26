@@ -84,6 +84,8 @@ private:
     void sendOrderAddedToDispatcher(const ::tradeorder::Order& order);
     void sendOrderCancelledToDispatcher(const info::CancelOrder& cancel_order);
     void sendOrderModifiedToDispatcher(const info::ModifyOrder& modify_order);
+    std::pair<bool, Rejection> modifyOrderInError() const;
+    bool rejectionSent() const;
     uint64_t ticker_;
     askbook asks_;
     bidbook bids_;

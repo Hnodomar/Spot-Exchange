@@ -83,7 +83,6 @@ inline bool OrderBook::possibleMatches(const bidbook& book, const ::tradeorder::
 
 void OrderBook::communicateMatchResults(MatchResult& match_result, const ::tradeorder::Order& order) const {
     #ifndef TEST_BUILD
-    std::cout << "Communicating Match Results.." << std::endl;
     for (const auto& fill : match_result.getFills()) {
         auto fill_ack = orderfill_ack.mutable_fill();
         fill_ack->set_timestamp(fill.timestamp);
@@ -99,7 +98,6 @@ void OrderBook::communicateMatchResults(MatchResult& match_result, const ::trade
         *orderfill_data.mutable_fill() = std::move(orderfill_ack.fill());
         md_dispatch_->writeMarketData(&orderfill_data);
     }
-    std::cout << "Finished Communicating Match Results" << std::endl;
     #endif
 }
 
@@ -136,6 +134,14 @@ void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
         ::tradeorder::Order new_order(modify_order);
         (this->*OrderBook::add_order[modify_order.is_buy_side])(new_order);
     }
+}
+/*
+std::pair<bool, Rejection> OrderBook::modifyOrderInError() const {
+    return {1, 1};
+}*/
+
+bool OrderBook::rejectionSent() const {
+    return 1;
 }
 
 void OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {

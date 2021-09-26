@@ -112,8 +112,7 @@ void DataPlatform::acceptSubscriber() {
         temp_remote_endpoint_,
         [this](boost::system::error_code ec, std::size_t) {
             if (!ec) {
-                std::cout << "got subscriber" << std::endl;
-                this->subscribers_.push_back(this->temp_remote_endpoint_);
+                this->subscribers_.insert(this->temp_remote_endpoint_);
                 this->acceptSubscriber();
             }
         }

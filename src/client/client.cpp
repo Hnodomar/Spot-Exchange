@@ -175,7 +175,7 @@ void TradingClient::printInfoBox(bool clear_prev) {
     }
     auto width = util::getTerminalWidth();
     auto height = util::getTerminalHeight();
-    height /= 5;
+    height /= 2;
     prev_height_ = height + 5;
     std::string info_str(width, '-');
     info_str.replace(info_str.length() / 2, 4, "INFO");

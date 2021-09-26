@@ -44,7 +44,7 @@ private:
     udp::endpoint temp_remote_endpoint_;
     std::array<char, 255> temp_buffer_;
     std::array<char, 1> conn_buffer_;
-    std::vector<udp::endpoint> subscribers_;
+    std::set<udp::endpoint> subscribers_;
 };
 template<typename Data>
 void DataPlatform::serialiseBytes(char*& ptr, Data data) {            
