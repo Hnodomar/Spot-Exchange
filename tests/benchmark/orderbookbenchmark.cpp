@@ -6,7 +6,7 @@
 
 #include "orderbookmanager.hpp"
 
-// naive orderbook 'micro' benchmarking
+// naive orderbook 'micro' benchmarking with 100,000 orders of each type (300k in total)
 // does not benchmark order entry server performance as a whole
 
 using namespace server::tradeorder;
@@ -16,13 +16,9 @@ constexpr uint64_t NUM_ORDERS = 100000;
 constexpr uint8_t BID_SIDE = 1;
 constexpr uint8_t ASK_SIDE = 1;
 static uint64_t ORDER_IDS = 0;
-static OrderBookManager bench_manager(nullptr);
-static std::vector<tradeorder::Order> adds;
-static std::vector<info::ModifyOrder> mods;
-static std::vector<info::CancelOrder> cancels;
 
-
-static void setupCancelOrders(OrderBookManager& m, std::vector<info::CancelOrder>& cancels) {
+static std::vector<info::CancelOrder> setupCancelOrders(OrderBookManager& m) {
+    std::vector<info::CancelOrder> cancels;
     std::random_device dev;
     std::mt19937 rng(dev());
     std::uniform_int_distribution<std::mt19937::result_type> dist10(1, 10);
@@ -60,9 +56,11 @@ static void setupCancelOrders(OrderBookManager& m, std::vector<info::CancelOrder
             }
         }
     }
+    return cancels;
 }
 
-static void setupAddOrders(OrderBookManager& m, std::vector<Order>& adds) {
+static std::vector<tradeorder::Order> setupAddOrders(OrderBookManager& m) {
+    std::vector<tradeorder::Order> adds;
     for (uint64_t i = 0; i < (NUM_ORDERS / 10); ++i) {
         uint64_t instrument = i % 100; // send same orders to 100 different instruments
         // NUM_ORDERS / 10 orders of same pattern testing key add order behaviour
@@ -77,9 +75,11 @@ static void setupAddOrders(OrderBookManager& m, std::vector<Order>& adds) {
         adds.emplace_back(BID_SIDE, nullptr, 102, 100, info::OrderCommon(ORDER_IDS++, i, instrument));
         adds.emplace_back(BID_SIDE, nullptr, 98, 100, info::OrderCommon(ORDER_IDS++, i, instrument));
     }
+    return adds;
 }
 
-static void setupModifyOrders(OrderBookManager& m, std::vector<info::ModifyOrder>& modifys) {
+static std::vector<info::ModifyOrder> setupModifyOrders(OrderBookManager& m) {
+    std::vector<info::ModifyOrder> modifys;
     for (uint64_t i = 0; i < NUM_ORDERS / 2; ++i) {
         uint64_t instrument = i % 100;
         if (i < NUM_ORDERS / 10) {
@@ -101,20 +101,20 @@ static void setupModifyOrders(OrderBookManager& m, std::vector<info::ModifyOrder
             modifys.emplace_back(ASK_SIDE, nullptr, 130, 80, info::OrderCommon(ORDER_IDS - 1, i, instrument));
         }
     }
-}
-
-static void setupOrdersAndBook(OrderBookManager& m, std::vector<Order>& adds, 
-std::vector<info::CancelOrder>& cancels, std::vector<info::ModifyOrder>& modifys) {
-    for (uint64_t i = 0; i < 100; ++i) {
-        m.createOrderBook(i); // 100 instruments
-    }
-    setupAddOrders(m, adds);
-    setupCancelOrders(m, cancels);
-    setupModifyOrders(m, modifys);
+    return modifys;
 }
 
 static void BM_OrderBook(benchmark::State& state) {
     for (auto arg : state) {
+        state.PauseTiming();
+        OrderBookManager bench_manager(nullptr);
+        for (uint64_t i = 0; i < 100; ++i) {
+            bench_manager.createOrderBook(i); // 100 instruments
+        }
+        auto adds = setupAddOrders(bench_manager);
+        auto mods = setupModifyOrders(bench_manager);
+        auto cancels = setupCancelOrders(bench_manager);
+        state.ResumeTiming();
         for (uint64_t i = 0; i < NUM_ORDERS; ++i) {
             bench_manager.addOrder(adds[i]);
             bench_manager.modifyOrder(mods[i]);
@@ -123,10 +123,9 @@ static void BM_OrderBook(benchmark::State& state) {
     }
 }
 
-BENCHMARK(BM_OrderBook)->Iterations(1);
+BENCHMARK(BM_OrderBook)->Iterations(100);
 
 int main(int argc, char* argv[]) {
-    setupOrdersAndBook(bench_manager, adds, cancels, mods);
     ::benchmark::Initialize(&argc, argv);
     ::benchmark::RunSpecifiedBenchmarks();
 }
