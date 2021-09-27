@@ -125,8 +125,5 @@ static void BM_OrderBook(benchmark::State& state) {
 
 BENCHMARK(BM_OrderBook)->Iterations(100);
 
-int main(int argc, char* argv[]) {
-    ::benchmark::Initialize(&argc, argv);
-    ::benchmark::RunSpecifiedBenchmarks();
-}
+BENCHMARK_MAIN();
 

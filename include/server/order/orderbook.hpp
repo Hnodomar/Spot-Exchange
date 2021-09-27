@@ -130,6 +130,7 @@ inline void OrderBook::processError(uint8_t error_flags, const OrderType& order)
 
 template<typename OrderType>
 inline void OrderBook::sendRejection(Rejection rejection, const OrderType& order) {
+    std::cout << "asdasdasd" << std::endl;
     #ifndef TEST_BUILD
     order.connection->sendRejection(rejection, order.user_id, order.order_id, order.ticker);
     #endif
