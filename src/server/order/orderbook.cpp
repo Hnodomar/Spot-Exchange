@@ -102,6 +102,7 @@ void OrderBook::communicateMatchResults(MatchResult& match_result, const ::trade
 }
 
 void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
+    std::unique_lock<std::mutex> lock(orderbook_mutex_, std::try_to_lock);
     using namespace info;
     auto itr = limitorders_.find(modify_order.order_id);
     if (itr == limitorders_.end()) {
@@ -109,16 +110,12 @@ void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
         return;
     }
     auto& limit = itr->second;
-    if (limit.order.isBuySide() != modify_order.is_buy_side) {
-        sendRejection(static_cast<Rejection>(MODIFY_WRONG_SIDE), modify_order);
-        return;
-    }
-    if (itr->second.order.getUserID() != modify_order.user_id) {
-        sendRejection(static_cast<Rejection>(WRONG_USER_ID), modify_order);
-        return;
-    }
-    if (modifyOrderTrivial(modify_order, limit.order)) {
-        sendRejection(static_cast<Rejection>(MODIFICATION_TRIVIAL), modify_order);
+    uint8_t error_flags = 0;
+    error_flags |= (limit.order.isBuySide() != modify_order.is_buy_side) << 1;
+    error_flags |= (itr->second.order.getUserID() != modify_order.user_id) << 2;
+    error_flags |= modifyOrderTrivial(modify_order, limit.order) << 3;
+    if (error_flags) {
+        processError(error_flags, modify_order);
         return;
     }
     if (modify_order.price == limit.order.getPrice()) {
@@ -129,22 +126,13 @@ void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
         sendOrderModifiedToDispatcher(modify_order);
         return;
     }
-    else {
-        cancelOrder(modify_order);
-        ::tradeorder::Order new_order(modify_order);
-        (this->*OrderBook::add_order[modify_order.is_buy_side])(new_order);
-    }
-}
-/*
-std::pair<bool, Rejection> OrderBook::modifyOrderInError() const {
-    return {1, 1};
-}*/
-
-bool OrderBook::rejectionSent() const {
-    return 1;
+    cancelOrder(modify_order);
+    ::tradeorder::Order new_order(modify_order);
+    (this->*OrderBook::add_order[modify_order.is_buy_side])(new_order);
 }
 
 void OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
+    std::unique_lock<std::mutex> lock(orderbook_mutex_, std::try_to_lock);
     auto itr = limitorders_.find(cancel_order.order_id);
     if (itr == limitorders_.end()) {
         sendRejection(static_cast<Rejection>(ORDER_NOT_FOUND), cancel_order);
@@ -155,28 +143,42 @@ void OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
         return;
     }
     Limit& limit = itr->second;
-    if (limit.next_limit == nullptr) { // cancel tail order
-        limit.current_level->tail = limit.prev_limit;
-        if (limit.prev_limit != nullptr)
-            limit.prev_limit->next_limit = nullptr;
-    }
-    if (limit.prev_limit == nullptr) { // cancel head order
-        limit.current_level->head = limit.next_limit;
-        if (limit.next_limit != nullptr)
-            limit.next_limit->prev_limit = nullptr;
-    }
-    if (limit.next_limit != nullptr && limit.prev_limit != nullptr) { // cancel non-tail non-head order
+    if (isInMiddleOfLevel(limit)) {
         limit.next_limit->prev_limit = limit.prev_limit;
         limit.prev_limit->next_limit = limit.next_limit;
     }
-    if (limit.current_level->getLevelOrderCount() == 0) {
-        if (itr->second.order.isBuySide())
+    else if (isHeadOrder(limit)) {
+        limit.current_level->head = limit.next_limit;
+        limit.next_limit->prev_limit = nullptr;
+    }
+    else if (isTailOrder(limit)) {
+        limit.current_level->tail = limit.prev_limit;
+        limit.prev_limit->next_limit = nullptr;
+    }
+    else if (isHeadAndTail(limit)) {
+        if (itr->second.order.isBuySide()) // if head and tail, its last order in level, so erase level
             bids_.erase(itr->second.order.getPrice());
         else
             asks_.erase(itr->second.order.getPrice());
     }
     limitorders_.erase(itr);
     sendOrderCancelledToDispatcher(cancel_order);
+}
+
+inline bool OrderBook::isTailOrder(const Limit& lim) const {
+    return lim.next_limit == nullptr && lim.prev_limit != nullptr;
+}
+
+inline bool OrderBook::isHeadOrder(const Limit& lim) const {
+    return lim.prev_limit == nullptr && lim.next_limit != nullptr;
+}
+
+inline bool OrderBook::isHeadAndTail(const Limit& lim) const {
+    return lim.next_limit == nullptr && lim.prev_limit == nullptr;
+}
+
+inline bool OrderBook::isInMiddleOfLevel(const Limit& lim) const {
+    return lim.next_limit != nullptr && lim.prev_limit != nullptr;
 }
 
 void OrderBook::sendOrderAddedToDispatcher(const ::tradeorder::Order& order) {

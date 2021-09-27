@@ -12,7 +12,7 @@ struct OrderCommon {
     , user_id(user_id)
     , ticker(ticker)
     {}
-    OrderCommon(OrderCommon&) = default;
+    OrderCommon(const OrderCommon&) = default;
     const uint64_t order_id;
     const uint64_t user_id;
     const uint64_t ticker;

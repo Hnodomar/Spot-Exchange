@@ -12,7 +12,7 @@ struct Limit {
     {}
     Limit() = default;
     ~Limit() {}
-    uint64_t timestamp;
+    //uint64_t timestamp;
     ::tradeorder::Order order;
     Limit* next_limit = nullptr;
     Limit* prev_limit = nullptr;

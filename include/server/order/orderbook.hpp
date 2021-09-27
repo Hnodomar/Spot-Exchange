@@ -46,7 +46,16 @@ using GetOrderResult = std::pair<bool, ::tradeorder::Order&>;
 using Rejection = orderentry::OrderEntryRejection::RejectionReason; 
 using MDResponse = orderentry::MarketDataResponse;
 #else
-struct Rejection {Rejection(const uint8_t&){}};
+enum Rejection {
+    UNKNOWN = 1,
+    ORDER_NOT_FOUND = 1,
+    ORDER_ID_ALREADY_PRESENT = 2,
+    ORDERBOOK_NOT_FOUND = 3,
+    TICKER_NOT_FOUND = 4,
+    MODIFY_WRONG_SIDE = 5,
+    MODIFICATION_TRIVIAL = 6,
+    WRONG_USER_ID = 7,
+};
 #endif
 enum class Side {Sell, Buy};
 
@@ -74,6 +83,7 @@ private:
     static const std::array<AddOrderFn, 2> add_order;
     template<typename T> Level& getSideLevel(const uint64_t price, T& sidebook);
     template<typename OrderType> void sendRejection(Rejection rejection, const OrderType& order);
+    template<typename OrderType> void processError(uint8_t error_flags, const OrderType& order);
     void placeOrderInBidBook(::tradeorder::Order& order);
     void placeOrderInAskBook(::tradeorder::Order& order);
     void communicateMatchResults(MatchResult& match_result, const ::tradeorder::Order& order) const;
@@ -84,8 +94,10 @@ private:
     void sendOrderAddedToDispatcher(const ::tradeorder::Order& order);
     void sendOrderCancelledToDispatcher(const info::CancelOrder& cancel_order);
     void sendOrderModifiedToDispatcher(const info::ModifyOrder& modify_order);
-    std::pair<bool, Rejection> modifyOrderInError() const;
-    bool rejectionSent() const;
+    bool isTailOrder(const Limit& lim) const;
+    bool isHeadOrder(const Limit& lim) const;
+    bool isHeadAndTail(const Limit& lim) const;
+    bool isInMiddleOfLevel(const Limit& lim) const;
     uint64_t ticker_;
     askbook asks_;
     bidbook bids_;
@@ -104,14 +116,22 @@ private:
 };
 
 template<typename OrderType>
+inline void OrderBook::processError(uint8_t error_flags, const OrderType& order) {
+    bool wrong_side = (error_flags >> 1) & 1U;
+    if (wrong_side)
+        sendRejection(static_cast<Rejection>(MODIFY_WRONG_SIDE), order);
+    bool wrong_userid = (error_flags >> 2) & 1U;
+    if (wrong_userid)
+        sendRejection(static_cast<Rejection>(WRONG_USER_ID), order);
+    bool trivial_modify = (error_flags >> 3) & 1U;
+    if (trivial_modify)
+        sendRejection(static_cast<Rejection>(MODIFICATION_TRIVIAL), order);
+}
+
+template<typename OrderType>
 inline void OrderBook::sendRejection(Rejection rejection, const OrderType& order) {
     #ifndef TEST_BUILD
-    order.connection->sendRejection(
-        rejection,
-        order.user_id,
-        order.order_id,
-        order.ticker
-    );
+    order.connection->sendRejection(rejection, order.user_id, order.order_id, order.ticker);
     #endif
 }
 
@@ -132,12 +152,8 @@ template<>
 inline void OrderBook::addOrder<Side::Buy>(::tradeorder::Order& order) {
     if (limitorders_.find(order.getOrderID()) != limitorders_.end()) {
         #ifndef TEST_BUILD
-        order.connection_->sendRejection(
-            static_cast<Rejection>(ORDER_ID_ALREADY_PRESENT),
-            order.getUserID(),
-            order.getOrderID(),
-            order.getTicker()
-        );
+        order.connection_->sendRejection(static_cast<Rejection>(ORDER_ID_ALREADY_PRESENT),
+            order.getUserID(), order.getOrderID(), order.getTicker());
         #endif
         return;
     }
@@ -157,12 +173,8 @@ template<>
 inline void OrderBook::addOrder<Side::Sell>(::tradeorder::Order& order) {
     if (limitorders_.find(order.getOrderID()) != limitorders_.end()) {
         #ifndef TEST_BUILD
-        order.connection_->sendRejection(
-            static_cast<Rejection>(ORDER_ID_ALREADY_PRESENT),
-            order.getUserID(),
-            order.getOrderID(),
-            order.getTicker()
-        );
+        order.connection_->sendRejection(static_cast<Rejection>(ORDER_ID_ALREADY_PRESENT),
+            order.getUserID(), order.getOrderID(), order.getTicker());
         #endif
         return;
     }

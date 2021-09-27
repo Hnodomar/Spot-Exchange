@@ -10,8 +10,8 @@ add_executable(orderbook_benchmark
 )
 
 target_link_libraries(orderbook_benchmark PRIVATE benchmark::benchmark)
-target_include_directories(orderbook_benchmark PRIVATE ${tradeserver_inc})
-target_compile_definitions(orderbook_benchmark PRIVATE -DTEST_BUILD)
-target_compile_options(orderbook_benchmark PRIVATE "-std=c++17" -O3)
+target_include_directories(orderbook_benchmark PUBLIC ${tradeserver_inc})
+target_compile_definitions(orderbook_benchmark PUBLIC -DTEST_BUILD)
+target_compile_options(orderbook_benchmark PUBLIC "-std=c++17" -O3 -g)
 
 

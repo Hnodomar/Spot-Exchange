@@ -82,7 +82,7 @@ static void setupAddOrders(OrderBookManager& m, std::vector<Order>& adds) {
 static void setupModifyOrders(OrderBookManager& m, std::vector<info::ModifyOrder>& modifys) {
     for (uint64_t i = 0; i < NUM_ORDERS / 2; ++i) {
         uint64_t instrument = i % 100;
-        if (i < NUM_ORDERS / 5) {
+        if (i < NUM_ORDERS / 10) {
             Order bid_temp(BID_SIDE, nullptr, 40, 50, info::OrderCommon(ORDER_IDS++, i, instrument));
             m.addOrder(bid_temp);
             modifys.emplace_back(BID_SIDE, nullptr, 40, 200, info::OrderCommon(ORDER_IDS - 1, i, instrument));
@@ -94,11 +94,11 @@ static void setupModifyOrders(OrderBookManager& m, std::vector<info::ModifyOrder
         else {
             Order bid_temp(BID_SIDE, nullptr, 40, 100, info::OrderCommon(ORDER_IDS++, i, instrument));
             m.addOrder(bid_temp);
-            modifys.emplace_back(BID_SIDE, nullptr, 30, 100, info::OrderCommon(ORDER_IDS - 1, i, instrument));
+            modifys.emplace_back(BID_SIDE, nullptr, 30, 80, info::OrderCommon(ORDER_IDS - 1, i, instrument));
 
             Order ask_temp(ASK_SIDE, nullptr, 140, 100, info::OrderCommon(ORDER_IDS++, i, instrument));
             m.addOrder(ask_temp);
-            modifys.emplace_back(ASK_SIDE, nullptr, 130, 100, info::OrderCommon(ORDER_IDS - 1, i, instrument));
+            modifys.emplace_back(ASK_SIDE, nullptr, 130, 80, info::OrderCommon(ORDER_IDS - 1, i, instrument));
         }
     }
 }
@@ -123,7 +123,7 @@ static void BM_OrderBook(benchmark::State& state) {
     }
 }
 
-BENCHMARK(BM_OrderBook)->Iterations(100);
+BENCHMARK(BM_OrderBook)->Iterations(1);
 
 int main(int argc, char* argv[]) {
     setupOrdersAndBook(bench_manager, adds, cancels, mods);
