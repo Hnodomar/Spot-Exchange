@@ -29,11 +29,36 @@ static inline std::time_t getUnixEpochTimestamp() {
     return std::time(nullptr);
 }
 
+static inline std::string getLogTimestamp() {
+    auto t = std::time(nullptr);
+    auto tm = *std::localtime(&t);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "[%d/%m/%Y-%H:%M:%S]");
+    return oss.str();
+}
+
+class ShortString {
+public:
+    ShortString(uint64_t representation) {
+        std::memcpy(short_string, &representation, 8);
+    }
+    friend inline std::ostream& operator<<(std::ostream& o, ShortString& rhs) {
+        for (auto i = 0; i < 8; ++i) {
+            if (rhs.short_string[i] == '\0')
+                return o;
+            o << rhs.short_string[i];
+        }
+        return o;
+    } 
+private:
+    char short_string[8] = {0};
+};
+
 static inline uint64_t convertStrToEightBytes(const std::string& input) {
     std::size_t len = input.length();
     if (len > 8) len = 8;
     char arr[8] = {0};
-    strncpy(arr, input.data(), len);
+    std::memcpy(arr, input.data(), len);
     return *reinterpret_cast<uint64_t*>(arr);
 }
 

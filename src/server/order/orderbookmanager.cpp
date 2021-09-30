@@ -50,11 +50,16 @@ void OrderBookManager::cancelOrder(const info::CancelOrder& cancel_order) {
 
 bool OrderBookManager::createOrderBook(const uint64_t ticker) {
     auto itr = OrderBookManager::orderbooks_.find(ticker);
-    if (itr != OrderBookManager::orderbooks_.end())
+    if (itr != OrderBookManager::orderbooks_.end()) {
+        logging::Logger::Log(logging::LogType::Warning, util::getLogTimestamp(), "Failed to create orderbook", util::convertEightBytesToString(ticker), "already exists");
         return false;
+    }
     auto emplace_itr = OrderBookManager::orderbooks_.emplace(ticker, OrderBook(marketdata_dispatcher_));
-    if (emplace_itr.second)
+    if (emplace_itr.second) {
+        logging::Logger::Log(logging::LogType::Debug, util::getLogTimestamp(), "Successfully created orderbook", util::convertEightBytesToString(ticker));
         return true;
+    }
+    logging::Logger::Log(logging::LogType::Warning, util::getLogTimestamp(), "Failed to create orderbook", util::convertEightBytesToString(ticker), "emplace error");
     return false;
 }
 
@@ -66,8 +71,10 @@ SubscribeResult OrderBookManager::subscribe(const uint64_t ticker) {
     auto itr = OrderBookManager::orderbooks_.find(ticker);
     if (itr == OrderBookManager::orderbooks_.end()) {
         OrderBook dangler;
+        logging::Logger::Log(logging::LogType::Debug, util::getLogTimestamp(), "Failed to subscribe to orderbook", util::convertEightBytesToString(ticker));
         return {false, dangler};
     }
+    logging::Logger::Log(logging::LogType::Debug, util::getLogTimestamp(), "Successfully subscribed to orderbook", util::convertEightBytesToString(ticker));
     return {true, orderbooks_.find(ticker)->second};
 }
 

@@ -24,10 +24,10 @@ enum class LogType {
 
 inline std::ostream& operator<<(std::ostream& output, LogType type) {
     switch(type) {
-        case LogType::Info: return output << "INFO";
-        case LogType::Debug: return output << "DEBUG";
-        case LogType::Warning: return output << "WARNING";
-        case LogType::Error: return output << "ERROR";
+        case LogType::Info: return output << "[INFO]";
+        case LogType::Debug: return output << "[DEBUG]";
+        case LogType::Warning: return output << "[WARNING]";
+        case LogType::Error: return output << "[ERROR]";
         default: return output;
     }
 }
@@ -40,7 +40,9 @@ public:
     ~LogEntry() {formatter_(nullptr, &log_entry_);}
     void formatLogEntry(std::ostream& output) {formatter_(&output, &log_entry_);}
 private:
-    static void format(std::ostream& output) {output << "\n";}
+    static void format(std::ostream& o) {
+        o << "\n";
+    }
     template <typename T, typename... Args>
     static void format(std::ostream &o, T &&t, Args &&... args) {
         o << t << " ";
@@ -69,7 +71,7 @@ private:
     }
     using Formatter = void(*)(std::ostream*, void*);
     Formatter formatter_;
-    std::aligned_storage<56, 8>::type log_entry_;
+    std::aligned_storage<120, 8>::type log_entry_;
 };
 
 // FIFO Multi Producer Single Consumer queue for trade engine logging
@@ -81,7 +83,7 @@ public:
      , buffer_(static_cast<QueueIndex*>(std::malloc(sizeof(QueueIndex) * size)))
      , head_(0)
      , tail_(0) {
-        const int is_power_of_two = size && !(size & (size - 1));
+        const bool is_power_of_two = size && !(size & (size - 1));
         assert(is_power_of_two);
         if (!buffer_) throw std::bad_alloc();
     }
@@ -92,8 +94,8 @@ public:
     template<typename ...Args>
     void emplace(Args&& ...args) {
         const auto head = head_.fetch_add(1);
-        auto& idx = buffer_[head_ & size_];
-        while (head - tail_.load(std::memory_order_acquire) >= size_);
+        auto& idx = buffer_[head & (size_ - 1)];
+        while ((head & (size_ - 1)) - tail_.load(std::memory_order_acquire) >= size_);
         new (&(idx.log_entry)) DataType(std::forward<Args>(args)...);
         idx.is_constructed.store(true, std::memory_order_release);
     }
@@ -109,7 +111,7 @@ public:
         while (!idx.is_constructed.load(std::memory_order_acquire));
         idx.log_entry.~DataType();
         idx.is_constructed.store(false, std::memory_order_release);
-        tail_.store(((tail + 1) & size_), std::memory_order_relaxed);
+        tail_.store(((tail + 1) & (size_ - 1)), std::memory_order_relaxed);
     }
 private:
     struct QueueIndex {
@@ -128,17 +130,19 @@ public:
     static void Log(LogType type, Args&& ...args) {
         getQueue().emplace(type, std::forward<Args>(args)...);
     }
-    Logger(const std::string_view filename = "")
+    static void setOutputFile(const std::string filename) {
+        Logger& logger = getInstance();
+        logger.use_std_out_ = false;
+        logger.output_ = std::make_unique<std::ofstream>(filename);
+    }
+    Logger()
         : queue_size_(1024)
         , queue_(std::make_unique<Queue<LogEntry>>(queue_size_))
         , active_(true)
         , use_std_out_(true)
     {
-        if (filename != "")
-            output_ = std::make_unique<std::ofstream>(std::string(filename));
         thread_ = std::thread([this]{writeFromQueue();});
     }
-
     ~Logger() {
         active_ = false;
         thread_.join();

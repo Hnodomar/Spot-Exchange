@@ -19,9 +19,11 @@ add_executable(orderbook_test
     ${PROJECT_SOURCE_DIR}/src/server/order/orderbook.cpp
     ${PROJECT_SOURCE_DIR}/src/server/matching/fifomatching.cpp
 )
-target_link_libraries(orderbook_test PRIVATE Catch2::Catch2)
-target_include_directories(orderbook_test PRIVATE ${tradeserver_inc})
-target_compile_definitions(orderbook_test PRIVATE -DTEST_BUILD)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+target_link_libraries(orderbook_test PUBLIC Catch2::Catch2 Threads::Threads)
+target_include_directories(orderbook_test PUBLIC ${tradeserver_inc} ${Boost_INCLUDE_DIR})
+target_compile_definitions(orderbook_test PUBLIC -DTEST_BUILD)
 
 include(CTest)
 include(Catch)

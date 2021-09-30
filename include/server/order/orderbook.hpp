@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <map>
 #include <array>
+#include <iostream>
 #include <utility>
 #include <mutex>
 #ifndef TEST_BUILD
@@ -12,11 +13,11 @@
 #else 
 namespace rpc {class MarketDataDispatcher;}
 #endif
+#include "logger.hpp"
 #include "exception.hpp"
 #include "fifomatching.hpp"
 #include "order.hpp"
 #include "limit.hpp"
-#include <iostream>
 
 static constexpr uint8_t UNKNOWN = 0;
 static constexpr uint8_t ORDER_NOT_FOUND = 1;
@@ -26,9 +27,6 @@ static constexpr uint8_t TICKER_NOT_FOUND = 4;
 static constexpr uint8_t MODIFY_WRONG_SIDE = 5;
 static constexpr uint8_t MODIFICATION_TRIVIAL = 6;
 static constexpr uint8_t WRONG_USER_ID = 7;
-
-#ifndef TEST_BUILD
-#endif
 
 namespace server {
 namespace tradeorder {
@@ -130,7 +128,6 @@ inline void OrderBook::processError(uint8_t error_flags, const OrderType& order)
 
 template<typename OrderType>
 inline void OrderBook::sendRejection(Rejection rejection, const OrderType& order) {
-    std::cout << "asdasdasd" << std::endl;
     #ifndef TEST_BUILD
     order.connection->sendRejection(rejection, order.user_id, order.order_id, order.ticker);
     #endif

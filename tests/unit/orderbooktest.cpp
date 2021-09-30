@@ -10,6 +10,7 @@ class OrderEntryStreamConnection {}; // test class
 using Conn = OrderEntryStreamConnection;
 
 TEST_CASE("OrderBook Operations") {
+    logging::Logger logger;
     OrderBookManager test_manager(nullptr);
     OrderEntryStreamConnection connobj;
     OrderEntryStreamConnection* conn = &connobj;

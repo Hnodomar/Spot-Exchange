@@ -54,6 +54,7 @@ private:
     void terminateConnection();
     void asyncOpStarted();
     void asyncOpFinished();
+    std::string getUserAddress();
 
     ServiceType* service_;
     grpc::ServerCompletionQueue* completion_queue_;
@@ -77,7 +78,8 @@ private:
     std::mutex response_queue_mutex_;
     std::unordered_map<uint64_t, OrderEntryStreamConnection*>& client_streams_;
     uint64_t userid_;
-    static std::atomic<uint64_t> orderid_generator_;
+    std::string user_address_;
+    alignas(64) static std::atomic<uint64_t> orderid_generator_; // dont want to false share the orderid generator with current_async_ops
     std::atomic<uint64_t> current_async_ops_;
     bool server_stream_done_;
     bool on_streamcancelled_called_;

@@ -95,6 +95,13 @@ void OrderBook::communicateMatchResults(MatchResult& match_result, const ::trade
         const_cast<OrderEntryStreamConnection*>(
             fill.connection
         )->writeToClient(&orderfill_ack);
+        logging::Logger::Log(
+            logging::LogType::Info, 
+            util::getLogTimestamp(), 
+            "Order filled with ID:", fill.order_id, 
+            "User ID:", util::ShortString(fill.user_id),
+            "Fill quantity:", fill.fill_qty
+        );
         *orderfill_data.mutable_fill() = std::move(orderfill_ack.fill());
         md_dispatch_->writeMarketData(&orderfill_data);
     }
@@ -182,6 +189,15 @@ inline bool OrderBook::isInMiddleOfLevel(const Limit& lim) const {
 }
 
 void OrderBook::sendOrderAddedToDispatcher(const ::tradeorder::Order& order) {
+    logging::Logger::Log(
+        logging::LogType::Info, 
+        util::getLogTimestamp(), 
+        "Order added with ID:", order.getOrderID(), 
+        "User ID:", util::ShortString(order.getUserID()), 
+        "Ticker:", util::ShortString(order.getTicker()),
+        "Price:", order.getPrice(), 
+        "Quantity:", order.getCurrQty()
+    );
     #ifndef TEST_BUILD
     auto add_data = OrderBook::neworder_data.mutable_add();
     add_data->set_order_id(order.getOrderID());
@@ -195,6 +211,13 @@ void OrderBook::sendOrderAddedToDispatcher(const ::tradeorder::Order& order) {
 }
 
 void OrderBook::sendOrderCancelledToDispatcher(const info::CancelOrder& cancel_order) {
+    logging::Logger::Log(
+        logging::LogType::Info, 
+        util::getLogTimestamp(), 
+        "Order cancelled:", cancel_order.order_id, 
+        "User ID:", util::ShortString(cancel_order.user_id), 
+        "Ticker:", util::ShortString(cancel_order.ticker)
+    );
     #ifndef TEST_BUILD
     auto cancel_data = OrderBook::cancelorder_data.mutable_cancel();
     cancel_data->set_order_id(cancel_order.order_id);
@@ -204,6 +227,15 @@ void OrderBook::sendOrderCancelledToDispatcher(const info::CancelOrder& cancel_o
 }
 
 void OrderBook::sendOrderModifiedToDispatcher(const info::ModifyOrder& modify_order) {
+    logging::Logger::Log(
+        logging::LogType::Info, 
+        util::getLogTimestamp(), 
+        "Order modified:", modify_order.order_id, 
+        "User ID:", util::ShortString(modify_order.user_id), 
+        "Ticker:", util::ShortString(modify_order.ticker), 
+        "To Quantity:", modify_order.quantity, 
+        "Side:", modify_order.is_buy_side
+    );
     #ifndef TEST_BUILD
     auto modify_data = OrderBook::modorder_data.mutable_mod();
     modify_data->set_order_id(modify_order.order_id);
@@ -219,8 +251,18 @@ bool OrderBook::modifyOrderTrivial(const info::ModifyOrder& modify_order, const 
 GetOrderResult OrderBook::getOrder(uint64_t order_id) {
     auto itr = limitorders_.find(order_id);
     if (itr == limitorders_.end()) {
+        logging::Logger::Log(
+            logging::LogType::Warning, 
+            util::getLogTimestamp(), 
+            "Failed to find order with ID:", order_id
+        );
         ::tradeorder::Order dangler;
         return {false, dangler};
     }
+    logging::Logger::Log(
+        logging::LogType::Debug, 
+        util::getLogTimestamp(), 
+        "Successfully found order with ID:", order_id
+    );
     return {true, itr->second.order};
 }

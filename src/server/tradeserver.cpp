@@ -25,7 +25,7 @@ TradeServer::TradeServer(char* port, const std::string& outputfile="")
     cq_ = builder.AddCompletionQueue();
     marketdata_dispatcher_.setCQ(cq_.get());
     trade_server_ = builder.BuildAndStart();
-    logging::Logger::Log(logging::LogType::Info, util::getUnixEpochTimestamp(), "Server listening on " + server_address);
+    logging::Logger::Log(logging::LogType::Info, util::getLogTimestamp(), "Server listening on " + server_address);
     disposition_.sa_handler = &sigintHandler;
     sigemptyset(&disposition_.sa_mask);
     disposition_.sa_flags = 0;

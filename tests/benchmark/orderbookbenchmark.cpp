@@ -2,7 +2,6 @@
 #include <vector>
 #include <string>
 #include <random>
-#include <boost/asio.hpp>
 
 #include "orderbookmanager.hpp"
 
@@ -105,9 +104,11 @@ static std::vector<info::ModifyOrder> setupModifyOrders(OrderBookManager& m) {
 }
 
 static void BM_OrderBook(benchmark::State& state) {
+    logging::Logger::setOutputFile("output.txt");
     for (auto arg : state) {
         state.PauseTiming();
         OrderBookManager bench_manager(nullptr);
+        OrderBookManager::clearBooks();
         for (uint64_t i = 0; i < 100; ++i) {
             bench_manager.createOrderBook(i); // 100 instruments
         }
@@ -123,7 +124,20 @@ static void BM_OrderBook(benchmark::State& state) {
     }
 }
 
-BENCHMARK(BM_OrderBook)->Iterations(100);
+static void BM_AddOrderNoFill(benchmark::State& state) {
+    logging::Logger::setOutputFile("output.txt");
+    Order temp(BID_SIDE, nullptr, 98, 100, info::OrderCommon(ORDER_IDS++, util::convertStrToEightBytes("TONY"), util::convertStrToEightBytes("AAPL")));
+    for (auto arg : state) {
+        state.PauseTiming();
+        OrderBookManager::clearBooks();
+        OrderBookManager::createOrderBook("AAPL");
+        state.ResumeTiming();
+        OrderBookManager::addOrder(temp);
+    }
+}
+
+//BENCHMARK(BM_OrderBook)->Iterations(2);
+BENCHMARK(BM_AddOrderNoFill);
 
 BENCHMARK_MAIN();
 

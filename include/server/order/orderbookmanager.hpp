@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include <cstring>
+#include <thread>
 #include <utility>
 #include <shared_mutex>
 
@@ -13,6 +14,7 @@ namespace rpc {class MarketDataDispatcher;}
 struct Rejection {Rejection(const uint8_t&){}};
 #endif
 #include "orderbook.hpp"
+#include "logger.hpp"
 
 namespace server {
 namespace tradeorder {
@@ -29,6 +31,7 @@ public:
     static SubscribeResult subscribe(const uint64_t ticker);
     static SubscribeResult subscribe(const std::string& ticker);
     static uint64_t numOrderBooks() {return orderbooks_.size();}
+    static void clearBooks() {OrderBookManager::orderbooks_.clear();}
 private:
     static rpc::MarketDataDispatcher* marketdata_dispatcher_;
     static ticker convertStrToTicker(const std::string& input);
