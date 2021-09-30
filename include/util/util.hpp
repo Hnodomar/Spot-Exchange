@@ -3,8 +3,11 @@
 
 #include <chrono>
 #include <cstdint>
+#include <ctime>
 #include <cstring>
 #include <cstdio>
+#include <sstream>
+#include <iomanip>
 #include <unistd.h>
 #include <sys/ioctl.h>
 
@@ -21,6 +24,11 @@ static inline int64_t getUnixTimestamp() {
     auto midnight = time::from_time_t(std::mktime(date));
     return std::chrono::duration_cast<std::chrono::nanoseconds>(now - midnight).count();
 }
+
+static inline std::time_t getUnixEpochTimestamp() {
+    return std::time(nullptr);
+}
+
 static inline uint64_t convertStrToEightBytes(const std::string& input) {
     std::size_t len = input.length();
     if (len > 8) len = 8;
@@ -28,6 +36,7 @@ static inline uint64_t convertStrToEightBytes(const std::string& input) {
     strncpy(arr, input.data(), len);
     return *reinterpret_cast<uint64_t*>(arr);
 }
+
 static inline std::string convertEightBytesToString(const uint64_t bytes) {
     char arr[8];
     std::memcpy(arr, &bytes, 8);

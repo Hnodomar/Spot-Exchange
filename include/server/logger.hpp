@@ -9,6 +9,7 @@
 #include <vector>
 #include <tuple>
 #include <thread>
+#include <cassert>
 #include <string_view>
 #include <type_traits>
 #include <mutex>
@@ -27,6 +28,7 @@ inline std::ostream& operator<<(std::ostream& output, LogType type) {
         case LogType::Debug: return output << "DEBUG";
         case LogType::Warning: return output << "WARNING";
         case LogType::Error: return output << "ERROR";
+        default: return output;
     }
 }
 
@@ -69,46 +71,55 @@ private:
     Formatter formatter_;
     std::aligned_storage<56, 8>::type log_entry_;
 };
+
+// FIFO Multi Producer Single Consumer queue for trade engine logging
 template<typename DataType> 
 class Queue {
 public:
     Queue(const std::size_t size)
      : size_(size)
-     , buffer_(static_cast<DataType*>(std::malloc(sizeof(DataType) * size)))
+     , buffer_(static_cast<QueueIndex*>(std::malloc(sizeof(QueueIndex) * size)))
      , head_(0)
      , tail_(0) {
+        const int is_power_of_two = size && !(size & (size - 1));
+        assert(is_power_of_two);
         if (!buffer_) throw std::bad_alloc();
     }
     ~Queue() {
         while (front()) pop();
         std::free(buffer_);
     }
-    template<typename ...Args> 
+    template<typename ...Args>
     void emplace(Args&& ...args) {
-        auto const head = head_.load(std::memory_order_relaxed);
-        auto const next_head = (head + 1) % size_;
-        while (next_head == tail_.load(std::memory_order_acquire));
-        new (&buffer_[head]) DataType(std::forward<Args>(args)...);
-        head_.store(next_head, std::memory_order_release);
+        const auto head = head_.fetch_add(1);
+        auto& idx = buffer_[head_ & size_];
+        while (head - tail_.load(std::memory_order_acquire) >= size_);
+        new (&(idx.log_entry)) DataType(std::forward<Args>(args)...);
+        idx.is_constructed.store(true, std::memory_order_release);
     }
     DataType* front() {
         auto tail = tail_.load(std::memory_order_relaxed);
-        if (head_.load(std::memory_order_acquire) == tail)
+        if (!buffer_[tail].is_constructed.load(std::memory_order_acquire))
             return nullptr;
-        return &buffer_[tail];
+        return &(buffer_[tail].log_entry);
     }
     void pop() {
         auto tail = tail_.load(std::memory_order_relaxed);
-        if (head_.load(std::memory_order_acquire) == tail)
-            return;
-        auto const next_tail = (tail + 1) % size_;
-        buffer_[tail].~DataType();
-        tail_.store(next_tail, std::memory_order_release);
+        auto& idx = buffer_[tail];
+        while (!idx.is_constructed.load(std::memory_order_acquire));
+        idx.log_entry.~DataType();
+        idx.is_constructed.store(false, std::memory_order_release);
+        tail_.store(((tail + 1) & size_), std::memory_order_relaxed);
     }
 private:
+    struct QueueIndex {
+        DataType log_entry;
+        std::atomic<bool> is_constructed = false;
+    };
     const std::size_t size_;
-    DataType* const buffer_;
-    std::atomic<std::size_t> head_, tail_;
+    QueueIndex* const buffer_;  
+    alignas(64) std::atomic<std::size_t> head_; // force x86 cacheline alignment requirement to avoid false sharing
+    alignas(64) std::atomic<std::size_t> tail_; // https://en.wikipedia.org/wiki/False_sharing
 };
 // Ideally: [loglevel] [datetime] [threadname:threadid] [msg] [module]
 class Logger {
@@ -119,7 +130,7 @@ public:
     }
     Logger(const std::string_view filename = "")
         : queue_size_(1024)
-        , num_queues_(1)
+        , queue_(std::make_unique<Queue<LogEntry>>(queue_size_))
         , active_(true)
         , use_std_out_(true)
     {
@@ -134,26 +145,12 @@ public:
     }
 private:
     void writeFromQueue() {
-        while (active_ || num_queues_) {
-            std::lock_guard<std::mutex> lock(getInstance().logger_mutex_);
-            for (auto itr = queues_.begin(); itr != queues_.end();) {
-                auto& queue = *itr;
-                while (queue->front()) {
-                    if (output_) {
-                        queue->front()->formatLogEntry(*(output_.get()));
-                    }
-                    if (use_std_out_) {
-                        queue->front()->formatLogEntry(std::cout);
-                    }
-                    queue->pop();
-                }
-                if (queue.unique() && !queue->front()) {
-                    itr = queues_.erase(itr);
-                }
-                else
-                    ++itr;
-            }
-            num_queues_ = queues_.size();
+        while (active_) {
+            const auto log_entry = queue_->front();
+            if (!log_entry) continue;
+            if (output_) log_entry->formatLogEntry(*(output_.get()));
+            else if (use_std_out_) log_entry->formatLogEntry(std::cout);
+            queue_->pop();
         }
     }
     static Logger& getInstance() {
@@ -161,18 +158,10 @@ private:
         return instance;
     }
     static Queue<LogEntry>& getQueue() {
-        static thread_local std::shared_ptr<Queue<LogEntry>> queue;
-        if (queue == nullptr) {
-            queue = std::make_shared<Queue<LogEntry>>(getInstance().queue_size_);
-            std::lock_guard<std::mutex> lock(getInstance().logger_mutex_);
-            getInstance().queues_.push_back(queue);
-        }
-        return *(queue.get());
+        return *(getInstance().queue_.get());
     }
-    std::mutex logger_mutex_;
     std::size_t queue_size_;
-    std::size_t num_queues_;
-    std::vector<std::shared_ptr<Queue<LogEntry>>> queues_;
+    std::unique_ptr<Queue<LogEntry>> queue_;
     std::unique_ptr<std::ostream> output_;
     std::thread thread_;
     bool active_;

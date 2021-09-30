@@ -22,6 +22,7 @@ OEJobHandlers& job_handlers)
     sendResponseFromQueue_cb_ = [this](bool success){this->sendResponseFromQueue(success);};
     server_context_.AsyncNotifyWhenDone(&stream_cancellation_callback_); // to get notification when request cancelled
     asyncOpStarted();
+    logging::Logger::Log(logging::LogType::Info, "Client connection: ", server_context_.peer());
     service_->RequestOrderEntry(
         &server_context_,
         &grpc_responder_,
@@ -38,7 +39,7 @@ thread_local OEResponseType OrderEntryStreamConnection::rejection_ack;
 std::atomic<uint64_t> OrderEntryStreamConnection::orderid_generator_ = 1;
 
 void OrderEntryStreamConnection::terminateConnection() {
-    std::cout << "Connection terminated\n";
+    logging::Logger::Log(logging::LogType::Info, "Client connection termination: ", server_context_.peer());
     client_streams_.erase(userid_);
     delete this;
 }
@@ -48,7 +49,7 @@ void OrderEntryStreamConnection::asyncOpStarted() {
 }
 
 void OrderEntryStreamConnection::onStreamCancelled(bool) {
-    std::cout << "stream cancelled async ops: " << current_async_ops_ << std::endl;
+    logging::Logger::Log(logging::LogType::Debug, "Client stream cancelled async ops: ", static_cast<unsigned long>(current_async_ops_));
     on_streamcancelled_called_ = true;
     if (current_async_ops_ == 0) {
         terminateConnection();
@@ -194,7 +195,6 @@ void OrderEntryStreamConnection::processOrderEntry(const orderentry::ModifyOrder
             order_common.ticker()
         )
     );
-    std::cout << "process order entry" << std::endl;
     modify_order_fn_(morder);
 }
 
