@@ -33,13 +33,12 @@ namespace tradeorder {
 using namespace info;
 using price = uint64_t;
 using order_id = uint64_t;
+using Order = ::tradeorder::Order;
 using askbook = std::map<price, Level>;
 using bidbook = std::map<price, Level, std::greater<price>>;
 using limitbook = std::unordered_map<order_id, server::tradeorder::Limit>;
 using MatchResult = server::matching::MatchResult;
-using BidMatcher = MatchResult (*)(::tradeorder::Order&, bidbook&, limitbook&);
-using AskMatcher = MatchResult (*)(::tradeorder::Order&, askbook&, limitbook&);  
-using GetOrderResult = std::pair<bool, ::tradeorder::Order&>;
+using GetOrderResult = std::pair<bool, Order&>;
 #ifndef TEST_BUILD
 using Rejection = orderentry::OrderEntryRejection::RejectionReason; 
 using MDResponse = orderentry::MarketDataResponse;
@@ -55,41 +54,35 @@ enum Rejection {
     WRONG_USER_ID = 7,
 };
 #endif
-enum class Side {Sell, Buy};
 
 class OrderBook {
 public:
-    using AddOrderFn = void (server::tradeorder::OrderBook::*)(::tradeorder::Order&);
-    OrderBook(
-        rpc::MarketDataDispatcher* md_dispatch, 
-        BidMatcher bidmatcher = &server::matching::FIFOMatch<bidbook>, 
-        AskMatcher askmatcher = &server::matching::FIFOMatch<askbook>
-    );
+    OrderBook(rpc::MarketDataDispatcher* md_dispatch);
     OrderBook(const OrderBook& orderbook);
-    OrderBook();
-    void addOrder(::tradeorder::Order& order);
+    OrderBook() = default;
+    void addOrder(Order& order);
     void modifyOrder(const info::ModifyOrder& modify_order);
     void cancelOrder(const info::CancelOrder& cancel_order);
     GetOrderResult getOrder(uint64_t order_id);
     uint64_t numOrders() const {return limitorders_.size();}
     uint64_t numLevels() const {return asks_.size() + bids_.size();}
-    BidMatcher getBidMatcher() const {return MatchBids;}
-    AskMatcher getAskMatcher() const {return MatchAsks;}
     rpc::MarketDataDispatcher* getMDDispatcher() const {return md_dispatch_;}
 private:
-    template<Side T> void addOrder(::tradeorder::Order& order);
-    static const std::array<AddOrderFn, 2> add_order;
-    template<typename T> Level& getSideLevel(const uint64_t price, T& sidebook);
+    void addBidOrder(Order& order);
+    void addAskOrder(Order& order);
+    template<typename Book>
+    void matchOrder(Order& order, Book& book);
+    template<typename Book>
+    void placeOrderInBook(Order& order, Book& book, bool is_buy_side);
+    template<typename Book> Level& getSideLevel(const uint64_t price, Book& sidebook);
     template<typename OrderType> void sendRejection(Rejection rejection, const OrderType& order);
-    template<typename OrderType> void processError(uint8_t error_flags, const OrderType& order);
-    void placeOrderInBidBook(::tradeorder::Order& order);
-    void placeOrderInAskBook(::tradeorder::Order& order);
-    void communicateMatchResults(MatchResult& match_result, const ::tradeorder::Order& order) const;
-    bool possibleMatches(const askbook& book, const ::tradeorder::Order& order) const;
-    bool possibleMatches(const bidbook& book, const ::tradeorder::Order& order) const;
-    bool modifyOrderTrivial(const info::ModifyOrder& modify_order, const ::tradeorder::Order& order);
-    void placeLimitInBookLevel(Level* level, ::tradeorder::Order& order);
-    void sendOrderAddedToDispatcher(const ::tradeorder::Order& order);
+    void processModifyError(uint8_t error_flags, const ModifyOrder& order);
+    void communicateMatchResults(MatchResult& match_result, const Order& order) const;
+    bool possibleMatches(const askbook& book, const Order& order) const;
+    bool possibleMatches(const bidbook& book, const Order& order) const;
+    bool modifyOrderTrivial(const info::ModifyOrder& modify_order, const Order& order);
+    void placeLimitInBookLevel(Level& level, Order& order);
+    void sendOrderAddedToDispatcher(const Order& order);
     void sendOrderCancelledToDispatcher(const info::CancelOrder& cancel_order);
     void sendOrderModifiedToDispatcher(const info::ModifyOrder& modify_order);
     bool isTailOrder(const Limit& lim) const;
@@ -101,8 +94,6 @@ private:
     bidbook bids_;
     std::unordered_map<order_id, Limit> limitorders_;
     std::mutex orderbook_mutex_;
-    MatchResult (*MatchBids)(::tradeorder::Order& order_to_match, bidbook& bids, limitbook& limitbook);
-    MatchResult (*MatchAsks)(::tradeorder::Order& order_to_match, askbook& asks, limitbook& limitbook);
     rpc::MarketDataDispatcher* md_dispatch_;
     #ifndef TEST_BUILD
     static thread_local orderentry::OrderEntryResponse orderfill_ack;
@@ -114,79 +105,47 @@ private:
 };
 
 template<typename OrderType>
-inline void OrderBook::processError(uint8_t error_flags, const OrderType& order) {
-    bool wrong_side = (error_flags >> 1) & 1U;
-    if (wrong_side)
-        sendRejection(static_cast<Rejection>(MODIFY_WRONG_SIDE), order);
-    bool wrong_userid = (error_flags >> 2) & 1U;
-    if (wrong_userid)
-        sendRejection(static_cast<Rejection>(WRONG_USER_ID), order);
-    bool trivial_modify = (error_flags >> 3) & 1U;
-    if (trivial_modify)
-        sendRejection(static_cast<Rejection>(MODIFICATION_TRIVIAL), order);
-}
-
-template<typename OrderType>
 inline void OrderBook::sendRejection(Rejection rejection, const OrderType& order) {
     #ifndef TEST_BUILD
     order.connection->sendRejection(rejection, order.user_id, order.order_id, order.ticker);
     #endif
 }
 
-template<typename Side>
-inline Level& OrderBook::getSideLevel(const uint64_t price, Side& sidebook) {
+template<typename Book>
+inline Level& OrderBook::getSideLevel(const uint64_t price, Book& sidebook) {
     auto lvlitr = sidebook.find(price);
     if (lvlitr == sidebook.end()) {
         auto ret = sidebook.emplace(price, Level(price));
         if (!ret.second) {
-            // error
+            logging::Logger::Log(
+                logging::LogType::Error,
+                util::getLogTimestamp(),
+                "Failed to emplace price level", price,
+                "in orderbook", ticker_
+            );
+            throw EngineException("Unable to emplace price level in orderbook");
         }
         lvlitr = ret.first;
     }
     return lvlitr->second;
 }
 
-template<>
-inline void OrderBook::addOrder<Side::Buy>(::tradeorder::Order& order) {
-    if (limitorders_.find(order.getOrderID()) != limitorders_.end()) {
-        #ifndef TEST_BUILD
-        order.connection_->sendRejection(static_cast<Rejection>(ORDER_ID_ALREADY_PRESENT),
-            order.getUserID(), order.getOrderID(), order.getTicker());
-        #endif
-        return;
+template<typename Book>
+inline void OrderBook::matchOrder(Order& order, Book& book) {
+    auto match_result = matching::FIFOMatcher::FIFOMatch(order, asks_, limitorders_);
+    if (order.getCurrQty() != 0) {
+        placeOrderInBook(order, bids_, order.isBuySide()); // want to update book before anyone is informed of result
     }
-    if (possibleMatches(asks_, order)) {
-        auto match_result = MatchAsks(order, asks_, limitorders_);
-        if (order.getCurrQty() != 0) {
-            placeOrderInBidBook(order); // want to update book before anyone is informed of result
-        }
-        communicateMatchResults(match_result, order);
-        return;
-    }
-    placeOrderInBidBook(order);
-    sendOrderAddedToDispatcher(order);
+    communicateMatchResults(match_result, order);
 }
 
-template<>
-inline void OrderBook::addOrder<Side::Sell>(::tradeorder::Order& order) {
-    if (limitorders_.find(order.getOrderID()) != limitorders_.end()) {
-        #ifndef TEST_BUILD
-        order.connection_->sendRejection(static_cast<Rejection>(ORDER_ID_ALREADY_PRESENT),
-            order.getUserID(), order.getOrderID(), order.getTicker());
-        #endif
-        return;
-    }
-    if (possibleMatches(bids_, order)) {
-        auto match_result = MatchBids(order, bids_, limitorders_);
-        if (order.getCurrQty() != 0) {
-            placeOrderInAskBook(order); // want to update book before anyone is informed of result
-        }
-        communicateMatchResults(match_result, order);
-        return;
-    }
-    placeOrderInAskBook(order);
-    sendOrderAddedToDispatcher(order);
+template<typename Book>
+inline void OrderBook::placeOrderInBook(Order& order, Book& book, bool is_buy_side) {
+    Level& level = getSideLevel(order.getPrice(), book);
+    level.is_buy_side = is_buy_side;
+    placeLimitInBookLevel(level, order);
 }
+
 
 }
 }

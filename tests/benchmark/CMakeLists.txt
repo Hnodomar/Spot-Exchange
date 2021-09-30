@@ -6,7 +6,6 @@ add_executable(orderbook_benchmark
     orderbookbenchmark.cpp
     ${PROJECT_SOURCE_DIR}/src/server/order/orderbookmanager.cpp
     ${PROJECT_SOURCE_DIR}/src/server/order/orderbook.cpp
-    ${PROJECT_SOURCE_DIR}/src/server/matching/fifomatching.cpp
 )
 
 target_link_libraries(orderbook_benchmark PRIVATE benchmark::benchmark)

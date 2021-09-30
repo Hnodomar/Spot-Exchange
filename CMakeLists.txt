@@ -79,7 +79,6 @@ target_link_libraries(oe_grpc_proto
 
 file(GLOB tradeserver_src 
     ${PROJECT_SOURCE_DIR}/src/server/*.cpp
-    ${PROJECT_SOURCE_DIR}/src/server/matching/*.cpp
     ${PROJECT_SOURCE_DIR}/src/server/order/*.cpp
     ${PROJECT_SOURCE_DIR}/src/server/rpc/*.cpp
 )

@@ -123,7 +123,7 @@ private:
     alignas(64) std::atomic<std::size_t> head_; // force x86 cacheline alignment requirement to avoid false sharing
     alignas(64) std::atomic<std::size_t> tail_; // https://en.wikipedia.org/wiki/False_sharing
 };
-// Ideally: [loglevel] [datetime] [threadname:threadid] [msg] [module]
+// Ideally: [loglevel] [datetime] [msg]
 class Logger {
 public:
     template<typename ...Args>
@@ -131,6 +131,7 @@ public:
         getQueue().emplace(type, std::forward<Args>(args)...);
     }
     static void setOutputFile(const std::string filename) {
+        if (filename == "") return;
         Logger& logger = getInstance();
         logger.use_std_out_ = false;
         logger.output_ = std::make_unique<std::ofstream>(filename);

@@ -17,7 +17,6 @@ add_executable(orderbook_test
     orderbooktest.cpp
     ${PROJECT_SOURCE_DIR}/src/server/order/orderbookmanager.cpp
     ${PROJECT_SOURCE_DIR}/src/server/order/orderbook.cpp
-    ${PROJECT_SOURCE_DIR}/src/server/matching/fifomatching.cpp
 )
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)

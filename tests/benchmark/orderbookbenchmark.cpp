@@ -136,7 +136,7 @@ static void BM_AddOrderNoFill(benchmark::State& state) {
     }
 }
 
-//BENCHMARK(BM_OrderBook)->Iterations(2);
+BENCHMARK(BM_OrderBook)->Iterations(5);
 BENCHMARK(BM_AddOrderNoFill);
 
 BENCHMARK_MAIN();

@@ -12,65 +12,78 @@ thread_local orderentry::MarketDataResponse OrderBook::modorder_data;
 thread_local orderentry::MarketDataResponse OrderBook::cancelorder_data;
 #endif
 
-OrderBook::OrderBook(rpc::MarketDataDispatcher* md_dispatch, BidMatcher bidmatcher, AskMatcher askmatcher)
-    : MatchBids(bidmatcher), MatchAsks(askmatcher), md_dispatch_(md_dispatch) 
+OrderBook::OrderBook(rpc::MarketDataDispatcher* md_dispatch)
+    : md_dispatch_(md_dispatch) 
 {}
 
 OrderBook::OrderBook(const OrderBook& orderbook) {
-    MatchBids = orderbook.getBidMatcher();
-    MatchAsks = orderbook.getAskMatcher();
     md_dispatch_ = orderbook.getMDDispatcher();
 }
 
-OrderBook::OrderBook() {
-    MatchBids = &server::matching::FIFOMatch<bidbook>;
-    MatchAsks = &server::matching::FIFOMatch<askbook>;
-    md_dispatch_ = nullptr;
+void OrderBook::addOrder(Order& order) {
+    std::unique_lock<std::mutex> lock(orderbook_mutex_, std::try_to_lock);
+    if (limitorders_.find(order.getOrderID()) != limitorders_.end()) {
+        #ifndef TEST_BUILD
+        order.connection_->sendRejection(static_cast<Rejection>(ORDER_ID_ALREADY_PRESENT),
+            order.getUserID(), order.getOrderID(), order.getTicker());
+        #endif
+        return;
+    }
+    switch(order.isBuySide()) {
+        case true: 
+            addBidOrder(order); 
+            break;
+        case false: 
+            addAskOrder(order); 
+            break;
+    }
 }
 
-const std::array<OrderBook::AddOrderFn, 2> OrderBook::add_order{
-    &OrderBook::addOrder<Side::Sell>,
-    &OrderBook::addOrder<Side::Buy>
-};
+void OrderBook::addBidOrder(Order& order) {
+    if (possibleMatches(asks_, order)) {
+        matchOrder(order, asks_);
+        return;
+    }
+    placeOrderInBook(order, bids_, order.isBuySide());
+    sendOrderAddedToDispatcher(order);
+}
 
-void OrderBook::addOrder(::tradeorder::Order& order) {
-    std::lock_guard<std::mutex> lock(orderbook_mutex_);
-    (this->*OrderBook::add_order[order.isBuySide()])(order);
+void OrderBook::addAskOrder(Order& order) {
+    if (possibleMatches(bids_, order)) {
+        matchOrder(order, bids_);
+        return;
+    }
+    placeOrderInBook(order, asks_, order.isBuySide());
+    sendOrderAddedToDispatcher(order);
 }
 
 // these will be inlined (hopefully) and are just for readability
-inline void OrderBook::placeLimitInBookLevel(Level* level, ::tradeorder::Order& order) {
+inline void OrderBook::placeLimitInBookLevel(Level& level, ::tradeorder::Order& order) {
     auto limitr = limitorders_.emplace(order.getOrderID(), Limit(order));
     if (!limitr.second) {
+        logging::Logger::Log(
+            logging::LogType::Error,
+            util::getLogTimestamp(),
+            "Failed to emplace order in limitbook", util::ShortString(order.getTicker()),
+            "Order ID", order.getOrderID()
+        );
         throw EngineException(
             "Unable to emplace new order in limitorder book, Book ID: "
             + std::to_string(ticker_) + " Order ID: " + std::to_string(order.getOrderID())
         );
     }
     Limit& limit = limitr.first->second;
-    if (level->head == nullptr) {
-        level->head = &limit;
-        level->tail = &limit;
+    if (level.head == nullptr) {
+        level.head = &limit;
+        level.tail = &limit;
     }
     else {
-        Limit* limit_temp = level->tail;
-        level->tail = &limit;
+        Limit* limit_temp = level.tail;
+        level.tail = &limit;
         limit.prev_limit = limit_temp;
         limit_temp->next_limit = &limit;
     }
-    limit.current_level = level;
-}
-
-inline void OrderBook::placeOrderInBidBook(::tradeorder::Order& order) {
-    Level* level = &getSideLevel(order.getPrice(), bids_);
-    level->is_buy_side = 1;
-    placeLimitInBookLevel(level, order);
-}
-
-inline void OrderBook::placeOrderInAskBook(::tradeorder::Order& order) {
-    Level* level = &getSideLevel(order.getPrice(), asks_);
-    level->is_buy_side = 0;
-    placeLimitInBookLevel(level, order);
+    limit.current_level = &level;
 }
 
 inline bool OrderBook::possibleMatches(const askbook& book, const ::tradeorder::Order& order) const {
@@ -108,7 +121,7 @@ void OrderBook::communicateMatchResults(MatchResult& match_result, const ::trade
     #endif
 }
 
-void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
+void OrderBook::modifyOrder(const ModifyOrder& modify_order) {
     std::unique_lock<std::mutex> lock(orderbook_mutex_, std::try_to_lock);
     using namespace info;
     auto itr = limitorders_.find(modify_order.order_id);
@@ -119,10 +132,10 @@ void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
     auto& limit = itr->second;
     uint8_t error_flags = 0;
     error_flags |= (limit.order.isBuySide() != modify_order.is_buy_side) << 1;
-    error_flags |= (itr->second.order.getUserID() != modify_order.user_id) << 2;
+    error_flags |= (limit.order.getUserID() != modify_order.user_id) << 2;
     error_flags |= modifyOrderTrivial(modify_order, limit.order) << 3;
     if (error_flags) {
-        processError(error_flags, modify_order);
+        processModifyError(error_flags, modify_order);
         return;
     }
     if (modify_order.price == limit.order.getPrice()) {
@@ -134,8 +147,20 @@ void OrderBook::modifyOrder(const info::ModifyOrder& modify_order) {
         return;
     }
     cancelOrder(modify_order);
-    ::tradeorder::Order new_order(modify_order);
-    (this->*OrderBook::add_order[modify_order.is_buy_side])(new_order);
+    Order new_order(modify_order);
+    addOrder(new_order);
+}
+
+inline void OrderBook::processModifyError(uint8_t error_flags, const ModifyOrder& order) {
+    bool wrong_side = (error_flags >> 1) & 1U;
+    if (wrong_side)
+        sendRejection(static_cast<Rejection>(MODIFY_WRONG_SIDE), order);
+    bool wrong_userid = (error_flags >> 2) & 1U;
+    if (wrong_userid)
+        sendRejection(static_cast<Rejection>(WRONG_USER_ID), order);
+    bool trivial_modify = (error_flags >> 3) & 1U;
+    if (trivial_modify)
+        sendRejection(static_cast<Rejection>(MODIFICATION_TRIVIAL), order);
 }
 
 void OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
@@ -163,10 +188,10 @@ void OrderBook::cancelOrder(const info::CancelOrder& cancel_order) {
         limit.prev_limit->next_limit = nullptr;
     }
     else if (isHeadAndTail(limit)) {
-        if (itr->second.order.isBuySide()) // if head and tail, its last order in level, so erase level
-            bids_.erase(itr->second.order.getPrice());
+        if (limit.order.isBuySide()) // if head and tail, its last order in level, so erase level
+            bids_.erase(limit.order.getPrice());
         else
-            asks_.erase(itr->second.order.getPrice());
+            asks_.erase(limit.order.getPrice());
     }
     limitorders_.erase(itr);
     sendOrderCancelledToDispatcher(cancel_order);
@@ -188,7 +213,7 @@ inline bool OrderBook::isInMiddleOfLevel(const Limit& lim) const {
     return lim.next_limit != nullptr && lim.prev_limit != nullptr;
 }
 
-void OrderBook::sendOrderAddedToDispatcher(const ::tradeorder::Order& order) {
+void OrderBook::sendOrderAddedToDispatcher(const Order& order) {
     logging::Logger::Log(
         logging::LogType::Info, 
         util::getLogTimestamp(), 
@@ -244,7 +269,7 @@ void OrderBook::sendOrderModifiedToDispatcher(const info::ModifyOrder& modify_or
     #endif
 }
 
-bool OrderBook::modifyOrderTrivial(const info::ModifyOrder& modify_order, const ::tradeorder::Order& order) {
+bool OrderBook::modifyOrderTrivial(const info::ModifyOrder& modify_order, const Order& order) {
     return modify_order.price == order.getPrice() && modify_order.quantity == order.getCurrQty();
 }
 
