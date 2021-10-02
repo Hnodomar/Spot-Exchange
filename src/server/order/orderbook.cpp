@@ -31,30 +31,12 @@ void OrderBook::addOrder(Order& order) {
     }
     switch(order.isBuySide()) {
         case true: 
-            addBidOrder(order); 
+            addOrder(order, asks_, bids_); 
             break;
         case false: 
-            addAskOrder(order); 
+            addOrder(order, bids_, asks_); 
             break;
     }
-}
-
-void OrderBook::addBidOrder(Order& order) {
-    if (possibleMatches(asks_, order)) {
-        matchOrder(order, asks_);
-        return;
-    }
-    placeOrderInBook(order, bids_, order.isBuySide());
-    sendOrderAddedToDispatcher(order);
-}
-
-void OrderBook::addAskOrder(Order& order) {
-    if (possibleMatches(bids_, order)) {
-        matchOrder(order, bids_);
-        return;
-    }
-    placeOrderInBook(order, asks_, order.isBuySide());
-    sendOrderAddedToDispatcher(order);
 }
 
 // these will be inlined (hopefully) and are just for readability

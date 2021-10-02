@@ -84,7 +84,21 @@ void OrderEntryStreamConnection::verifyID(bool success) {
         default:
             break;
     }
-    if (userIDUsageRejection(*common)) {
+    if (client_streams_.find(common->user_id()) != client_streams_.end()) {
+        asyncOpFinished();
+        logging::Logger::Log(
+            logging::LogType::Info, 
+            util::getLogTimestamp(), 
+            "Client", user_address_, 
+            "sent user ID usage rejection for trying to use", util::convertEightBytesToString(common->user_id())
+        );
+        on_streamcancelled_called_ = true;
+        auto rejection = rejection_ack.mutable_rejection();
+        auto rejection_common = rejection->mutable_order_common();
+        *rejection_common = *common;
+        rejection->set_rejection_response(orderentry::OrderEntryRejection::wrong_user_id);
+        on_streamcancelled_called_ = true;
+        writeToClient(&rejection_ack);
         return;
     }
     client_streams_.emplace(common->user_id(), this);
@@ -106,7 +120,7 @@ void OrderEntryStreamConnection::readOrderEntryCallback(bool success) {
     if (success) {
         processEntry();
         asyncOpStarted();
-        grpc_responder_.Read(&oe_request_, &read_orderentry_callback_); // todo: put to back of queue
+        grpc_responder_.Read(&oe_request_, &read_orderentry_callback_);
     }
 }
 
@@ -170,7 +184,13 @@ void OrderEntryStreamConnection::processOrderEntry(const orderentry::NewOrder& n
 
 void OrderEntryStreamConnection::sendRejection(const Rejection rejection, const uint64_t userid,
 const uint64_t orderid, const uint64_t ticker) {
-    logging::Logger::Log(logging::LogType::Info, util::getLogTimestamp(), "Client", user_address_, "sent rejection response with ID:", static_cast<int>(rejection), "on order ID:", orderid);
+    logging::Logger::Log(
+        logging::LogType::Info, 
+        util::getLogTimestamp(), 
+        "Client", user_address_, 
+        "sent rejection response with ID:", static_cast<int>(rejection), 
+        "on order ID:", orderid
+    );
     auto rejection_obj = rejection_ack.mutable_rejection();
     rejection_obj->set_rejection_response(rejection);
     auto common_obj = rejection_obj->mutable_order_common();
@@ -212,7 +232,12 @@ void OrderEntryStreamConnection::processOrderEntry(const orderentry::CancelOrder
 
 bool OrderEntryStreamConnection::userIDUsageRejection(const orderentry::OrderCommon& common) {
     if (common.user_id() != userid_) {
-        logging::Logger::Log(logging::LogType::Info, util::getLogTimestamp(), "Client", user_address_, "sent user ID usage rejection for trying to use", util::convertEightBytesToString(common.user_id()));
+        logging::Logger::Log(
+            logging::LogType::Info, 
+            util::getLogTimestamp(), 
+            "Client", user_address_, 
+            "sent user ID usage rejection for trying to use", util::convertEightBytesToString(common.user_id())
+        );
         auto rejection = rejection_ack.mutable_rejection();
         auto rejection_common = rejection->mutable_order_common();
         *rejection_common = common;
@@ -225,7 +250,13 @@ bool OrderEntryStreamConnection::userIDUsageRejection(const orderentry::OrderCom
 }
 
 void OrderEntryStreamConnection::acknowledgeEntry(const orderentry::NewOrder& new_order) {
-    logging::Logger::Log(logging::LogType::Info, util::getLogTimestamp(), "Client", user_address_, "sent new order ack with ID:", new_order.order_common().order_id());
+    logging::Logger::Log(
+        logging::LogType::Info, 
+        util::getLogTimestamp(), 
+        "Client", user_address_, 
+        "sent new order ack with ID:", new_order.order_common().order_id(),
+        "ticker:", util::ShortString(new_order.order_common().ticker())
+    );
     auto status = neworder_ack.mutable_new_order_ack();
     *status->mutable_new_order() = new_order;
     *status->mutable_new_order()->mutable_order_common() = new_order.order_common();
@@ -234,7 +265,13 @@ void OrderEntryStreamConnection::acknowledgeEntry(const orderentry::NewOrder& ne
 }
 
 void OrderEntryStreamConnection::acknowledgeEntry(const orderentry::ModifyOrder& modify_order) {
-    logging::Logger::Log(logging::LogType::Info, util::getLogTimestamp(), "Client", user_address_, "sent modify order ack with ID:", modify_order.order_common().order_id());
+    logging::Logger::Log(
+        logging::LogType::Info, 
+        util::getLogTimestamp(), 
+        "Client", user_address_, 
+        "sent modify order ack with ID:", modify_order.order_common().order_id(),
+        "ticker:", util::ShortString(modify_order.order_common().ticker())
+    );
     auto status = modorder_ack.mutable_modify_order_ack();
     *status->mutable_modify_order() = modify_order;
     *status->mutable_modify_order()->mutable_order_common() = modify_order.order_common();
@@ -242,8 +279,18 @@ void OrderEntryStreamConnection::acknowledgeEntry(const orderentry::ModifyOrder&
     writeToClient(&modorder_ack);
 }
 
+std::chrono::_V2::system_clock::time_point OrderEntryStreamConnection::t0;
+
 void OrderEntryStreamConnection::acknowledgeEntry(const orderentry::CancelOrder& cancel_order) {
-    logging::Logger::Log(logging::LogType::Info, util::getLogTimestamp(), "Client", user_address_, "sent cancel order ack with ID:", cancel_order.order_common().order_id());
+    logging::Logger::Log(
+        logging::LogType::Info, 
+        util::getLogTimestamp(), 
+        "Client", user_address_, 
+        "sent cancel order ack with ID:", cancel_order.order_common().order_id(),
+        "ticker:", util::ShortString(cancel_order.order_common().ticker())
+    );
+    if (cancel_order.order_common().order_id() == 19)
+        OrderEntryStreamConnection::t0 = std::chrono::high_resolution_clock::now();
     auto status = cancelorder_ack.mutable_cancel_order_ack();
     *(status->mutable_status_common()) = cancel_order.order_common();
     status->set_timestamp(util::getUnixTimestamp());

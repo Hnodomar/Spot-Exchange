@@ -4,14 +4,19 @@
 #include <memory>
 #include <thread>
 #include <list>
+#include <chrono>
 #include <mutex>
 
+#include "orderentrystreamconnection.hpp"
+#include "logger.hpp"
+#include "util.hpp"
 #include "orderentry.grpc.pb.h"
 
 using MDResponseType = orderentry::MarketDataResponse;
 using MDRequestType = orderentry::InitiateMarketDataStreamRequest;
 namespace rpc {
 using WriteCallback = std::function<void(bool)>;
+using Time = std::chrono::_V2::system_clock::time_point;
 class MarketDataDispatcher {
 public:
     MarketDataDispatcher(

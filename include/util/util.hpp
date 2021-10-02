@@ -37,7 +37,7 @@ static inline std::string getLogTimestamp() {
     return oss.str();
 }
 
-class ShortString {
+class ShortString { // avoid std::string SBO - save 24 bytes for 8-byte strings
 public:
     ShortString(uint64_t representation) {
         std::memcpy(short_string, &representation, 8);

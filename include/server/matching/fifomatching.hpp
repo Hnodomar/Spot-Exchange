@@ -29,15 +29,15 @@ public:
     static MatchResult FIFOMatch(Order& order_to_match, Book& book, limitbook& limitbook) {
         auto book_itr = book.begin();
         Level& book_lvl = book_itr->second;
-        Limit* book_lim = book_lvl.head;
+        Limit* book_order = book_lvl.head;
         uint64_t order_price = order_to_match.getPrice();
         MatchResult match_result;
         while (book_itr != book.end()) {
-            if (noMatchingLevel(book, order_price, book_itr->first)) // no matching to do
+            if (noMatchingLevel(book, order_price, book_itr->first)) {
                 return match_result;
-            book_lim = book_lvl.head;
-            if (orderFullyMatchedInLevel(book_lim, order_to_match, match_result, 
-            book_lvl, limitbook, book, book_itr)) {
+            }
+            book_order = book_lvl.head;
+            if (orderFullyMatchedInLevel(book_order, order_to_match, match_result, book_lvl, limitbook, book, book_itr)) {
                 return match_result;
             }
             if (book_lvl.getLevelOrderCount() == 0) {
@@ -50,16 +50,16 @@ public:
     }
 private:
     template<typename Book, typename BookItr>
-    static bool orderFullyMatchedInLevel(Limit*& book_lim, Order& order_to_match, MatchResult& match_result, 
+    static bool orderFullyMatchedInLevel(Limit*& book_order, Order& order_to_match, MatchResult& match_result, 
     Level& book_lvl, limitbook& limitbook, Book& book, BookItr& book_itr) {
-        while (book_lim != nullptr) {
-            uint32_t fill_qty = std::min(book_lim->order.getCurrQty(), order_to_match.getCurrQty());
+        while (ordersInLevel(book_order)) {
+            uint32_t fill_qty = std::min(book_order->order.getCurrQty(), order_to_match.getCurrQty());
             order_to_match.decreaseQty(fill_qty);
-            book_lim->order.decreaseQty(fill_qty);
-            addFills(match_result, order_to_match, book_lim, fill_qty);
-            if (order_to_match.getCurrQty() == 0) { //order doesnt get added
-                if (book_lim->order.getCurrQty() == 0) {
-                    popLimitFromQueue(book_lim, book_lvl, limitbook);
+            book_order->order.decreaseQty(fill_qty);
+            addFills(match_result, order_to_match, book_order, fill_qty);
+            if (orderIsFullyMatched(order_to_match)) { // order_to_match is fully matched
+                if (book_order->order.getCurrQty() == 0) {
+                    removeOrderFromBook(book_order, book_lvl, limitbook);
                 }
                 if (book_lvl.getLevelOrderCount() == 0) {
                     book.erase(book_itr++);
@@ -67,11 +67,11 @@ private:
                 match_result.setOrderFilled();
                 return true;
             }
-            popLimitFromQueue(book_lim, book_lvl, limitbook);
+            removeOrderFromBook(book_order, book_lvl, limitbook);
         }
         return false;
     }
-    static void popLimitFromQueue(Limit*& book_lim, Level& book_lvl, limitbook& limitbook) {
+    static void removeOrderFromBook(Limit*& book_lim, Level& book_lvl, limitbook& limitbook) {
         Limit* next_limit = book_lim->next_limit;
         if (next_limit != nullptr) {
             next_limit->prev_limit = nullptr;
@@ -85,7 +85,8 @@ private:
         int64_t filltime = util::getUnixTimestamp();
         bool order_filled = order.getCurrQty() == 0;
         bool book_lim_filled = book_lim->order.getCurrQty() == 0;
-        match_result.addFill(filltime,
+        match_result.addFill(
+            filltime,
             order.getTicker(),
             book_lim->order.getOrderID(), 
             book_lim->order.getPrice(),
@@ -111,6 +112,8 @@ private:
     static bool noMatchingLevel(askbook&, uint64_t order_price, uint64_t ask_price) {
         return order_price < ask_price;
     }
+    static bool ordersInLevel(const Limit* order) {return order != nullptr;}
+    static bool orderIsFullyMatched(const Order& order_to_match) {return order_to_match.getCurrQty() == 0;}
 };
 
 }

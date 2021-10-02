@@ -30,7 +30,10 @@ TradeServer::TradeServer(char* port, const std::string& outputfile="")
     sigemptyset(&disposition_.sa_mask);
     disposition_.sa_flags = 0;
     sigaction(SIGINT, &disposition_, NULL);
+    for (int i = 0; i < 101; ++i)
+        ordermanager_.createOrderBook(i);
     ordermanager_.createOrderBook("AAPL");
+    ordermanager_.createOrderBook(123);
     handleRemoteProcedureCalls();
 }
 
@@ -62,9 +65,7 @@ void TradeServer::handleRemoteProcedureCalls() {
     for (uint i = 0; i < std::thread::hardware_concurrency(); ++i) {
         threadpool_.emplace_back(std::thread(rpcprocessor));
     }
-    while(true) {
-
-    }
+    rpcprocessor();
 }
 
 OEJobHandlers TradeServer::job_handlers_ = {

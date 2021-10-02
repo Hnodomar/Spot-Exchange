@@ -34,7 +34,6 @@ TEST_CASE("OrderBook Operations") {
         test_manager.addOrder(test_order_one);
         REQUIRE(test_book.numLevels() == 1);
         REQUIRE(test_book.numOrders() == 1);
-        
 
         // add order two to orderbook one
         Order test_order_two(0, conn, 100, 4000, info::OrderCommon(2, 2, ticker));

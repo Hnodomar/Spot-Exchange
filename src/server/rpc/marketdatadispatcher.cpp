@@ -24,15 +24,30 @@ bool MarketDataDispatcher::initiateMarketDataDispatch() {
     );
     void* tag;
     bool ok;
-    std::cout << "Waiting for MDP grpc establishment..\n";
+    logging::Logger::Log(
+        logging::LogType::Debug,
+        util::getLogTimestamp(),
+        "Blocking: waiting for market data dispatcher connection to initiate"
+    );
     GPR_ASSERT(cq_->Next(&tag, &ok));
-    std::cout << "Connected!\n";
+    logging::Logger::Log(
+        logging::LogType::Debug,
+        util::getLogTimestamp(),
+        "Market data dispatcher connection successful"
+    );
     return ok;
 }
 
 void MarketDataDispatcher::writeMarketData(const MDResponseType* marketdata) {
+    if (marketdata->add().order_id() == 356198) {
+        auto t1 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> time = t1 - OrderEntryStreamConnection::t0;
+        std::cout << "BENCHMARK COMPLETE: " << std::endl;
+        std::cout << "120000 orders in " << (time / 1000.0).count() << " seconds" << std::endl;
+        std::cout << 120000.0 / (time / 1000.0).count() << " orders a second" << std::endl;
+        exit(0);
+    }
     std::lock_guard<std::mutex> lock(mdmutex_);
-    std::cout << "sending market data" << std::endl;
     market_data_queue_.push_back(*marketdata);
     if (!write_in_progress_) {
         market_data_writer_.Write(*marketdata, &write_marketdata_);

@@ -68,12 +68,9 @@ public:
     uint64_t numLevels() const {return asks_.size() + bids_.size();}
     rpc::MarketDataDispatcher* getMDDispatcher() const {return md_dispatch_;}
 private:
-    void addBidOrder(Order& order);
-    void addAskOrder(Order& order);
-    template<typename Book>
-    void matchOrder(Order& order, Book& book);
-    template<typename Book>
-    void placeOrderInBook(Order& order, Book& book, bool is_buy_side);
+    template<typename BookToMatchOn, typename BookToAddTo> 
+    void addOrder(Order& order, BookToMatchOn& match_book, BookToAddTo& add_book);
+    template<typename Book> void placeOrderInBook(Order& order, Book& book, bool is_buy_side);
     template<typename Book> Level& getSideLevel(const uint64_t price, Book& sidebook);
     template<typename OrderType> void sendRejection(Rejection rejection, const OrderType& order);
     void processModifyError(uint8_t error_flags, const ModifyOrder& order);
@@ -89,6 +86,7 @@ private:
     bool isHeadOrder(const Limit& lim) const;
     bool isHeadAndTail(const Limit& lim) const;
     bool isInMiddleOfLevel(const Limit& lim) const;
+    
     uint64_t ticker_;
     askbook asks_;
     bidbook bids_;
@@ -129,14 +127,16 @@ inline Level& OrderBook::getSideLevel(const uint64_t price, Book& sidebook) {
     }
     return lvlitr->second;
 }
-
-template<typename Book>
-inline void OrderBook::matchOrder(Order& order, Book& book) {
-    auto match_result = matching::FIFOMatcher::FIFOMatch(order, asks_, limitorders_);
-    if (order.getCurrQty() != 0) {
-        placeOrderInBook(order, bids_, order.isBuySide()); // want to update book before anyone is informed of result
+template<typename BookToMatchOn, typename BookToAddTo> 
+void OrderBook::addOrder(Order& order, BookToMatchOn& match_book, BookToAddTo& add_book) {
+    if (possibleMatches(match_book, order)) {
+        auto match_result = matching::FIFOMatcher::FIFOMatch(order, match_book, limitorders_);
+        communicateMatchResults(match_result, order);
+        if (order.getCurrQty() == 0)
+            return;
     }
-    communicateMatchResults(match_result, order);
+    placeOrderInBook(order, add_book, order.isBuySide());
+    sendOrderAddedToDispatcher(order);
 }
 
 template<typename Book>
@@ -145,7 +145,6 @@ inline void OrderBook::placeOrderInBook(Order& order, Book& book, bool is_buy_si
     level.is_buy_side = is_buy_side;
     placeLimitInBookLevel(level, order);
 }
-
 
 }
 }

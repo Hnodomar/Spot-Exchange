@@ -16,13 +16,15 @@ constexpr uint8_t BID_SIDE = 1;
 constexpr uint8_t ASK_SIDE = 1;
 static uint64_t ORDER_IDS = 0;
 
+std::random_device dev;
+std::mt19937 rng(dev());
+std::uniform_int_distribution<std::mt19937::result_type> dist10(1, 10);
+std::uniform_int_distribution<std::mt19937::result_type> dist100(1, 100);
+
 static std::vector<info::CancelOrder> setupCancelOrders(OrderBookManager& m) {
     std::vector<info::CancelOrder> cancels;
-    std::random_device dev;
-    std::mt19937 rng(dev());
-    std::uniform_int_distribution<std::mt19937::result_type> dist10(1, 10);
     for (uint64_t i = 0; i < NUM_ORDERS / 2; ++i) {
-        uint64_t instrument = i % 100;
+        uint64_t instrument = dist100(rng);
         if (i < (NUM_ORDERS / 5)) { // 20% of cancels will result in level data-structure erasure
             Order tempone(ASK_SIDE, nullptr, i + 160, 100, info::OrderCommon(ORDER_IDS++, i, instrument));
             m.addOrder(tempone);
@@ -61,7 +63,7 @@ static std::vector<info::CancelOrder> setupCancelOrders(OrderBookManager& m) {
 static std::vector<tradeorder::Order> setupAddOrders(OrderBookManager& m) {
     std::vector<tradeorder::Order> adds;
     for (uint64_t i = 0; i < (NUM_ORDERS / 10); ++i) {
-        uint64_t instrument = i % 100; // send same orders to 100 different instruments
+        uint64_t instrument = dist100(rng); // send same orders to 100 different instruments
         // NUM_ORDERS / 10 orders of same pattern testing key add order behaviour
         adds.emplace_back(BID_SIDE, nullptr, 98, 100, info::OrderCommon(ORDER_IDS++, i, instrument));
         adds.emplace_back(ASK_SIDE, nullptr, 103, 100, info::OrderCommon(ORDER_IDS++, i, instrument));
@@ -80,7 +82,7 @@ static std::vector<tradeorder::Order> setupAddOrders(OrderBookManager& m) {
 static std::vector<info::ModifyOrder> setupModifyOrders(OrderBookManager& m) {
     std::vector<info::ModifyOrder> modifys;
     for (uint64_t i = 0; i < NUM_ORDERS / 2; ++i) {
-        uint64_t instrument = i % 100;
+        uint64_t instrument = dist100(rng);
         if (i < NUM_ORDERS / 10) {
             Order bid_temp(BID_SIDE, nullptr, 40, 50, info::OrderCommon(ORDER_IDS++, i, instrument));
             m.addOrder(bid_temp);

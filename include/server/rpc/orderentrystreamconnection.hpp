@@ -8,6 +8,7 @@
 #include <list>
 #include <atomic>
 #include <mutex>
+#include <chrono>
 
 #include "logger.hpp"
 #include "orderentry.grpc.pb.h"
@@ -36,6 +37,8 @@ public:
     void sendRejection(const Rejection rejection, const uint64_t userid,
         const uint64_t orderid, const uint64_t ticker);
     void onStreamCancelled(bool); // notification tag callback for stream termination
+    alignas(64) static std::atomic<uint64_t> orderid_generator_; // dont want to false share the orderid generator with current_async_ops
+    static std::chrono::_V2::system_clock::time_point t0;
 private:
     void sendResponseFromQueue(bool success);
     void initialiseOEConn(bool success);
@@ -79,7 +82,6 @@ private:
     std::unordered_map<uint64_t, OrderEntryStreamConnection*>& client_streams_;
     uint64_t userid_;
     std::string user_address_;
-    alignas(64) static std::atomic<uint64_t> orderid_generator_; // dont want to false share the orderid generator with current_async_ops
     std::atomic<uint64_t> current_async_ops_;
     bool server_stream_done_;
     bool on_streamcancelled_called_;
