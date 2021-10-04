@@ -44,7 +44,7 @@ The diagram below represents the overall design of the Trading Engine.
 
 ### Operation Flow
 
-1. Clients interested in submitting order entries connect to Order Entry Server via TCP setting up a bi-dreictional gRPC stream.
+1. Clients interested in submitting order entries connect to Order Entry Server via TCP setting up a bi-directional gRPC stream.
 
 1. Clients can submit Add Order, Cancel Order and Modify Order requests and receive corresponding order acknowledgements for each.
 
