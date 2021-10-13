@@ -1,6 +1,6 @@
-# Trading Engine
+# Spot Exchange
 
-A multi-threaded algorithmic trading platform with engine and FIFO limit orderbook built in C++, leveraging gRPC to present users an interface to submit several kinds of orders. Clients can listen to a separate market data platform without the need to connect to the order entry server, and receive live market data via UDP.
+A multi-threaded exchange with engine and FIFO limit orderbook built in C++, leveraging gRPC to present users an interface to submit several kinds of orders. Clients can listen to a separate market data platform without the need to connect to the order entry server, and receive live market data via UDP.
 
 ## Features
 
