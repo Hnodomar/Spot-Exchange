@@ -34,6 +34,10 @@ The trading platform keeps a comprehensive log record of all clients and actions
 
 The diagram below represents the overall design of the Trading Engine. 
 
+<p align="center">
+  <img src="https://github.com/Hnodomar/Spot-Exchange/blob/main/description/SpotExchange.png" alt="Architecture"/>
+</p>
+
 ![](description/SpotExchange.png)
 
 * Establishing a bi-directional gRPC stream of order requests and responses between the server and client allows for fast and secure communication.
