@@ -38,8 +38,6 @@ The diagram below represents the overall design of the Trading Engine.
   <img src="https://github.com/Hnodomar/Spot-Exchange/blob/main/description/SpotExchange.png" alt="Architecture"/>
 </p>
 
-![](description/SpotExchange.png)
-
 * Establishing a bi-directional gRPC stream of order requests and responses between the server and client allows for fast and secure communication.
 
 * A separate market data platform means that clients do not have to establish a connection with the order entry server in order to receive live market data. Market data is provided over UDP, leveraging Boost ASIO and a custom serialisation.
