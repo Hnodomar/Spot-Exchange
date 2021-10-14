@@ -30,11 +30,11 @@ Loosely inspired by NASDAQ ITCH-50 (Currently no sequence numbers)
 
 The trading platform keeps a comprehensive log record of all clients and actions that the server takes, including order entry data. To achieve this in a multi-threaded implementation, a custom Multi-Producer Single-Consumer (MPSC) lockless queue was designed and implemented to maintain low latency with a large amount of logging. False-sharing is avoided by requesting strict alignment requirements on relevant objects.
 
-## Trading Engine Architecture
+## Spot Exchange Architecture
 
 The diagram below represents the overall design of the Trading Engine. 
 
-![](description/TradingEngine.png)
+![](description/SpotExchange.png)
 
 * Establishing a bi-directional gRPC stream of order requests and responses between the server and client allows for fast and secure communication.
 
