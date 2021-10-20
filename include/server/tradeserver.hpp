@@ -44,7 +44,6 @@ private:
     void setupMarketDataStream();
     static void makeNewOrderEntryConnection();
     struct ::sigaction disposition_;
-    logging::Logger logger_;
     std::mutex taglist_mutex_;
     std::vector<std::thread> threadpool_;
     rpc::MarketDataDispatcher marketdata_dispatcher_;

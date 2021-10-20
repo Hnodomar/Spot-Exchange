@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
     }
     USER_ID = std::atoi(argv[1]);
     auto stub(orderentry::OrderEntryService::NewStub(
-        grpc::CreateChannel("127.0.0.1:9001", grpc::InsecureChannelCredentials())
+        grpc::CreateChannel("192.168.1.88:9001", grpc::InsecureChannelCredentials())
     ));
     grpc::ClientContext context;
     std::shared_ptr<

@@ -167,7 +167,7 @@ private:
     }
     std::size_t queue_size_;
     std::unique_ptr<Queue<LogEntry>> queue_;
-    std::unique_ptr<std::ostream> output_;
+    std::unique_ptr<std::ostream> output_ = nullptr;
     std::thread thread_;
     bool active_;
     bool use_std_out_;

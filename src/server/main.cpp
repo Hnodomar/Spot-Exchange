@@ -5,6 +5,6 @@ int main(int argc, char* argv[]) {
         std::cout << "Call with correct args: [port] [OPTIONAL: log file]" << std::endl;
         return 1;
     }
-    server::TradeServer server(argv[1], argv[2]);
+    server::TradeServer server(argv[1], argc == 3 ? argv[2] : "");
     return 0;
 }

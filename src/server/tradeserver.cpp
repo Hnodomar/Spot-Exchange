@@ -16,8 +16,8 @@ TradeServer::TradeServer(char* port, const std::string& outputfile="")
   : marketdata_dispatcher_(nullptr, &market_data_service_)
   , ordermanager_(&marketdata_dispatcher_)
 {
-    logger_.setOutputFile(outputfile);
-    std::string server_address("127.0.0.1:" + std::string(port));
+    logging::Logger::setOutputFile(outputfile);
+    std::string server_address("192.168.1.88:" + std::string(port));
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&order_entry_service_);
@@ -25,7 +25,11 @@ TradeServer::TradeServer(char* port, const std::string& outputfile="")
     cq_ = builder.AddCompletionQueue();
     marketdata_dispatcher_.setCQ(cq_.get());
     trade_server_ = builder.BuildAndStart();
-    logging::Logger::Log(logging::LogType::Info, util::getLogTimestamp(), "Server listening on " + server_address);
+    logging::Logger::Log(
+        logging::LogType::Info, 
+        util::getLogTimestamp(), 
+        "Server listening on " + server_address
+    );
     disposition_.sa_handler = &sigintHandler;
     sigemptyset(&disposition_.sa_mask);
     disposition_.sa_flags = 0;
