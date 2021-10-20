@@ -32,7 +32,7 @@ The trading platform keeps a comprehensive log record of all clients and actions
 
 ## Spot Exchange Architecture
 
-The diagram below represents the overall design of the Trading Engine. 
+The diagram below represents the overall design of the spot exchange. 
 
 <p align="center">
   <img src="https://github.com/Hnodomar/Spot-Exchange/blob/main/description/SpotExchange.png" alt="Architecture"/>
